@@ -1,12 +1,13 @@
 """
-UI XML dumper: uiautomator dump via stdout pipeline — skip adb pull + file I/O.
+UI XML dumper: uiautomator dump → adb pull → parse.
 
-v2: Satu adb shell pipeline:
-    uiautomator dump /sdcard/ui_dump.xml && cat /sdcard/ui_dump.xml
-→ stdout langsung di-parse, gak perlu pull ke lokal.
+v3: Kembali ke adb pull. ADB punya protokol transfer binary yang lebih efisien
+    daripada shell pipeline `cat` lewat stdout — terutama buat file XML yg ~1MB+.
+    adb pull bisa 2-5x lebih cepat.
 """
 import asyncio
 import time
+from pathlib import Path
 import xml.etree.ElementTree as ET
 
 from bot.utils.logger import get_logger
@@ -14,12 +15,12 @@ from bot.utils.logger import get_logger
 log = get_logger(__name__)
 
 DEVICE_DUMP_PATH = "/sdcard/ui_dump.xml"
+LOCAL_DUMP_PATH = Path(__file__).parent.parent.parent / "data" / "ui_dump.xml"
 
 
 async def dump_xml(adb: "ADBClient") -> ET.ElementTree | None:
     """
-    Dump UI XML via stdout pipeline — 1 shell call, no file I/O lokal.
-
+    Jalankan uiautomator dump → pull → parse.
     Returns ElementTree atau None jika gagal.
     """
     # Skip import di top-level biar gak circular
@@ -27,23 +28,27 @@ async def dump_xml(adb: "ADBClient") -> ET.ElementTree | None:
 
     t0 = time.monotonic()
 
-    rc, out, err = await adb._run([
-        "shell", f"uiautomator dump {DEVICE_DUMP_PATH} >/dev/null 2>&1 && cat {DEVICE_DUMP_PATH}",
-    ], timeout=15)
-
-    if rc != 0 or not out.strip().startswith("<?xml"):
-        log.error("XML dump gagal (rc=%d): %s", rc, err or "stdout bukan XML")
+    # Dump di device
+    rc, out, err = await adb._run(
+        ["shell", "uiautomator", "dump", DEVICE_DUMP_PATH], timeout=15
+    )
+    if rc != 0:
+        log.error("uiautomator dump gagal: %s", err)
         return None
 
+    # Pull ke lokal — ADB sync protocol lebih efisien dari cat via stdout
+    rc, _, err = await adb._run(["pull", DEVICE_DUMP_PATH, str(LOCAL_DUMP_PATH)])
+    if rc != 0:
+        log.error("adb pull xml dump gagal: %s", err)
+        return None
+
+    # Parse
     try:
-        # Hapus stderr yang mungkin nyempil (biasanya "Events injected: ...")
-        xml_start = out.index("<?xml")
-        clean_xml = out[xml_start:]
-        tree = ET.ElementTree(ET.fromstring(clean_xml))
+        tree = ET.parse(LOCAL_DUMP_PATH)
         duration_ms = (time.monotonic() - t0) * 1000
         log.debug("XML dump selesai (%.0f ms)", duration_ms)
         return tree
-    except (ET.ParseError, ValueError) as exc:
+    except ET.ParseError as exc:
         log.error("XML parse error: %s", exc)
         return None
 

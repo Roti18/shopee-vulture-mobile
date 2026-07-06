@@ -145,7 +145,6 @@ class TieredRecovery:
             log.warning("Recovery L2: reconnect gagal → naik L3")
             return WorkflowState.RECOVERY
         await asyncio.sleep(2)
-        self._cache.invalidate()
         tree = await self._cache.get(self._adb, force=True)
         if tree is not None:
             screen = self._detect_current_screen()
