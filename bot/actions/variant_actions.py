@@ -49,21 +49,20 @@ async def set_purchase_quantity(
     if plus_button_el is None:
         cache.invalidate()
         await cache.get(adb)
+
         parser = VariantParser(cache)
-        plus_el = parser.get_plus_button()
-    else:
-        plus_el = plus_button_el
-    plus_el = parser.get_plus_button()
-    if plus_el is None:
+        plus_button_el = parser.get_plus_button()
+
+    if plus_button_el is None:
         log.error("set_purchase_quantity: BUTTON_PLUS tidak ditemukan")
         return False
 
     log.info(
         "set_purchase_quantity: tap + %d kali via [%s] at (%d, %d)",
-        quantity - 1, plus_el.resolved_via, plus_el.tap_x, plus_el.tap_y,
+        quantity - 1, plus_button_el.resolved_via, plus_button_el.tap_x, plus_button_el.tap_y,
     )
     for i in range(quantity - 1):
-        await adb.tap(plus_el.tap_x, plus_el.tap_y)
+        await adb.tap(plus_button_el.tap_x, plus_button_el.tap_y)
         await asyncio.sleep(0.2)   # beri jeda agar UI update
 
     return True
