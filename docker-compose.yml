@@ -1,0 +1,57 @@
+services:
+  shopee-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: shopee-restock-bot
+    restart: unless-stopped
+
+    # Baca secrets dari file .env (JANGAN hardcode di sini)
+    env_file:
+      - data/.env
+
+    environment:
+      - TZ=Asia/Jakarta
+      - PYTHONUNBUFFERED=1
+
+    volumes:
+      # Data (SQLite DB + config.json) — persisted across restarts
+      - ./data:/app/data
+
+      # Logs — persisted, accessible dari host untuk monitoring
+      - ./logs:/app/logs
+
+      # Screenshots order sukses — persisted
+      - ./screenshots:/app/screenshots
+
+    # ADB via USB: expose host USB ke container
+    # Uncomment jika device terhubung via USB:
+    # devices:
+    #   - /dev/bus/usb:/dev/bus/usb
+    # privileged: true
+
+    # ADB via WiFi tidak memerlukan devices mapping
+    # Pastikan ADB_WIFI_HOST sudah diisi di .env
+
+    # Logging: JSON format, rotasi otomatis
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+    # Resource limits (sesuaikan dengan VPS)
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+
+    # Healthcheck override (sudah diset di Dockerfile, ini optional override)
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import time,os; f='/tmp/bot_health'; assert os.path.exists(f) and time.time()-os.path.getmtime(f)<600"]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 1m
