@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Fixture: popup varian dengan satu varian tersedia (stok 17) -->
+<hierarchy rotation="0">
+  <node index="0" text="" resource-id="android:id/content" class="android.widget.FrameLayout" package="id.co.shopee" content-desc="" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[0,0][1080,2265]">
+    <node index="0" text="" resource-id="sectionTierVariation" class="android.widget.LinearLayout" package="id.co.shopee" content-desc="" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[0,1579][1080,2265]">
+      <node index="0" text="" resource-id="buttonClose" class="android.widget.ImageButton" package="id.co.shopee" content-desc="Tutup" checkable="false" checked="false" clickable="true" enabled="true" focusable="true" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[965,1587][1072,1694]" />
+      <!-- Varian tersedia -->
+      <node index="1" text="" resource-id="imageItemIcon_id-11134207-8224z-mk7u52sh8gsid2" class="android.widget.ImageView" package="id.co.shopee" content-desc="" checkable="false" checked="false" clickable="true" enabled="true" focusable="true" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[34,1613][386,1965]" />
+      <node index="2" text="Stok: 17" resource-id="" class="android.widget.TextView" package="id.co.shopee" content-desc="" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[421,1923][572,1967]" />
+      <!-- Varian habis -->
+      <node index="3" text="" resource-id="imageItemIcon_id-11134207-8224o-mk7nukr4raww06" class="android.widget.ImageView" package="id.co.shopee" content-desc="" checkable="false" checked="false" clickable="true" enabled="true" focusable="true" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[400,1613][752,1965]" />
+      <node index="4" text="Habis" resource-id="" class="android.widget.TextView" package="id.co.shopee" content-desc="" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[167,1915][253,1954]" />
+      <node index="5" text="Stok: 0" resource-id="" class="android.widget.TextView" package="id.co.shopee" content-desc="" checkable="false" checked="false" clickable="false" enabled="true" focusable="false" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[421,1923][550,1967]" />
+      <!-- Submit button: ready -->
+      <node index="6" text="Beli Sekarang" resource-id="buttonCartPanelSubmit" class="android.widget.TextView" package="id.co.shopee" content-desc="" checkable="false" checked="false" clickable="true" enabled="true" focusable="true" focused="false" scrollable="false" long-clickable="false" password="false" selected="false" bounds="[11,2208][1069,2265]" />
+    </node>
+  </node>
+</hierarchy>
