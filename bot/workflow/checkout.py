@@ -24,8 +24,7 @@ class CheckoutHandler:
 
     async def execute(self) -> WorkflowState:
         # Refresh dump
-        self._cache.invalidate()
-        await self._cache.get(self._adb)
+        await self._cache.get(self._adb, force=True)
 
         parser = CheckoutParser(self._cache)
         if not parser.is_checkout_page():
@@ -53,8 +52,7 @@ class CheckoutHandler:
             await self._adb.tap(el.tap_x, el.tap_y)
             await asyncio.sleep(0.8)
 
-            self._cache.invalidate()
-            tree = await self._cache.get(self._adb)
+            tree = await self._cache.get(self._adb, force=True)
             if tree is None:
                 continue
 

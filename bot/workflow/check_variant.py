@@ -52,8 +52,7 @@ class CheckVariantHandler:
 
     async def execute(self) -> WorkflowState:
         # ── 1. Refresh dump ─────────────────────────────────────────────
-        self._cache.invalidate()
-        await self._cache.get(self._adb)
+        await self._cache.get(self._adb, force=True)
 
         parser = VariantParser(self._cache)
 

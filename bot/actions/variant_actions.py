@@ -47,8 +47,7 @@ async def set_purchase_quantity(
         return True
 
     if plus_button_el is None:
-        cache.invalidate()
-        await cache.get(adb)
+        await cache.get(adb, force=True)
 
         parser = VariantParser(cache)
         plus_button_el = parser.get_plus_button()
@@ -99,8 +98,7 @@ async def wait_for_variant_popup(
     await asyncio.sleep(0.1)
 
     while (time.monotonic() - t0) < max_wait:
-        cache.invalidate()
-        tree = await cache.get(adb)
+        tree = await cache.get(adb, force=True)
         if tree is None:
             await asyncio.sleep(poll)
             continue

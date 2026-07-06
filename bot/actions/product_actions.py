@@ -50,12 +50,12 @@ async def wait_for_product_page(
     """
     t0 = time.monotonic()
 
-    # Tunggu singkat agar app mulai load, lalu langsung polling cepat
+    # Tunggu singkat agar app mulai load
     await asyncio.sleep(0.3)
 
     while (time.monotonic() - t0) < max_wait:
-        cache.invalidate()
-        tree = await cache.get(adb)
+        # Pake force=True abis halaman baru
+        tree = await cache.get(adb, force=True)
         if tree is None:
             await asyncio.sleep(poll)
             continue

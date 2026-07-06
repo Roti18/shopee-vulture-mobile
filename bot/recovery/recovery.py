@@ -108,10 +108,7 @@ class TieredRecovery:
         Jika bukan → coba open URL.
         """
         log.info("Recovery L1: dump XML ulang")
-        self._cache.invalidate()
-        tree = await self._cache.get(self._adb)
-
-        if tree is None:
+        tree = await self._cache.get(self._adb, force=True)
             log.warning("Recovery L1: dump gagal → naik L2")
             return WorkflowState.RECOVERY
 
@@ -148,7 +145,7 @@ class TieredRecovery:
             return WorkflowState.RECOVERY
         await asyncio.sleep(2)
         self._cache.invalidate()
-        tree = await self._cache.get(self._adb)
+        tree = await self._cache.get(self._adb, force=True)
         if tree is not None:
             screen = self._detect_current_screen()
             log.info("Recovery L2: setelah reconnect, screen terdeteksi = %s", screen.value)

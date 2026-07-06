@@ -49,8 +49,7 @@ async def wait_for_checkout_page(
     await asyncio.sleep(0.1)
 
     while (time.monotonic() - t0) < max_wait:
-        cache.invalidate()
-        tree = await cache.get(adb)
+        tree = await cache.get(adb, force=True)
         if tree is None:
             await asyncio.sleep(poll)
             continue
