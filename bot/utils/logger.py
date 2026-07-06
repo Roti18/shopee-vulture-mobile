@@ -74,11 +74,8 @@ def get_logger(name: str) -> logging.Logger:
         fh.setFormatter(HumanFormatter())
         logger.addHandler(fh)
     except (PermissionError, OSError) as exc:
-        # Fallback: file log gak bisa ditulis (biasanya karena Docker volume owner mismatch)
-        # Log ke stdout aja — Docker logs udah cukup
         import warnings
         warnings.warn(f"File logging disabled: {exc}")
 
     logger.addHandler(sh)
-    logger.addHandler(fh)
     return logger
