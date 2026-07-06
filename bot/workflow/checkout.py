@@ -42,44 +42,35 @@ class CheckoutHandler:
             log.error("CHECKOUT: tombol 'Buat Pesanan' tidak ditemukan")
             return WorkflowState.RECOVERY
 
-        # ── Rapid Tap Loop ──────────────────────────────────────────────────
-        # Cuma 2 attempt maks — kalau gagal, recovery yang handle loop-nya
-        # Single tap aja, gak double-tap biar gak duplikat order.
-        success = False
+        # ── Tap Sekali ──────────────────────────────────────────────────────
+        # 1 tap doang. Kalau gagal, biar state machine + interval + recovery yang handle.
+        log.info(
+            "Tap 'Buat Pesanan' via [%s] at (%d, %d)",
+            el.resolved_via, el.tap_x, el.tap_y
+        )
+        await self._adb.tap(el.tap_x, el.tap_y)
 
-        for attempt in range(2):
-            log.info(
-                "Tap 'Buat Pesanan' (Percobaan %d/2) via [%s] at (%d, %d)",
-                attempt + 1, el.resolved_via, el.tap_x, el.tap_y
-            )
-            await self._adb.tap(el.tap_x, el.tap_y)
-
-            # Cek screen setelah tap
-            await asyncio.sleep(0.4)
-            self._cache.invalidate()
-            tree = await self._cache.get(self._adb)
-            if tree is None:
-                continue
-
-            parser = CheckoutParser(self._cache)
-            screen = parser.detect_screen()
-            log.info("Tap: Screen saat ini = %s", screen.value)
-
-            if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
-                success = True
-                break
-
-            if screen == ScreenType.UNKNOWN:
-                await asyncio.sleep(0.5)
-                self._cache.invalidate()
-                await self._cache.get(self._adb)
-                screen = parser.detect_screen()
-                if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
-                    success = True
-                    break
-
-        if not success:
-            log.error("CHECKOUT: gagal setelah 2 tap")
+        # Tunggu sebentar, cek apakah layar udah pindah
+        await asyncio.sleep(0.5)
+        self._cache.invalidate()
+        tree = await self._cache.get(self._adb)
+        if tree is None:
+            log.error("CHECKOUT: XML dump gagal setelah tap")
             return WorkflowState.RECOVERY
 
-        return WorkflowState.VERIFY_PAYMENT
+        parser = CheckoutParser(self._cache)
+        screen = parser.detect_screen()
+
+        if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
+            return WorkflowState.VERIFY_PAYMENT
+
+        if screen == ScreenType.UNKNOWN:
+            await asyncio.sleep(0.5)
+            self._cache.invalidate()
+            await self._cache.get(self._adb)
+            screen = parser.detect_screen()
+            if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
+                return WorkflowState.VERIFY_PAYMENT
+
+        log.error("CHECKOUT: gagal, screen=%s", screen.value)
+        return WorkflowState.RECOVERY
