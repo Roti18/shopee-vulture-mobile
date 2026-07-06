@@ -93,6 +93,16 @@ Then via Telegram:
 docker compose up -d --build
 ```
 
+**Container volume permission:**
+
+Bot berjalan sebagai `botuser` (UID 999). Folder volume di host harus bisa ditulis user ini:
+
+```bash
+sudo chown -R 999:999 data logs screenshots
+```
+
+Jalankan sekali setelah `git pull` atau pertama kali deploy.
+
 ---
 
 ## Telegram Commands
