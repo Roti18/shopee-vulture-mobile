@@ -23,7 +23,7 @@ class CreateOrderHandler:
         self,
         adb: ADBClient,
         cache: XMLCache,
-        bus: EventBus,``
+        bus: EventBus,
         runtime: BotRuntimeState,
         product: ProductConfig,
         get_sleep_after_success_fn,

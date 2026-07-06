@@ -27,14 +27,14 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy source code
 COPY bot/ bot/
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 # Buat user non-root
 RUN groupadd -r botuser && useradd -r -g botuser botuser
 
-# Buat direktori volume, set permission 777 agar bisa ditulis siapapun
-# (volume dari host punya root:root, permission 777 biar botuser bisa nulis walau ownernya root)
+# Buat direktori volume, set permission agar bisa ditulis siapapun
 RUN mkdir -p /app/data /app/logs /app/screenshots /tmp && \
-    chmod 777 /app/data /app/logs /app/screenshots /tmp && \
     chown -R botuser:botuser /app
 
 USER botuser
@@ -49,4 +49,5 @@ assert os.path.exists(f), 'Healthcheck file missing'; \
 age=time.time()-os.path.getmtime(f); \
 assert age < 600, f'Healthcheck stale: {age:.0f}s'"
 
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["python", "-m", "bot.main"]
