@@ -42,8 +42,8 @@ class CheckoutHandler:
             log.error("CHECKOUT: tombol 'Buat Pesanan' tidak ditemukan")
             return WorkflowState.RECOVERY
 
-        # ── Tap Loop 0.5s ──────────────────────────────────────────────────
-        # Tap setiap 0.5 detik sampai berhasil.
+        # ── Tap Loop 0.8s ──────────────────────────────────────────────────
+        # Tap setiap 0.8 detik sampai berhasil.
         # User tinggal /stop kalo mau berhenti.
         while True:
             log.info(
@@ -51,7 +51,7 @@ class CheckoutHandler:
                 el.resolved_via, el.tap_x, el.tap_y
             )
             await self._adb.tap(el.tap_x, el.tap_y)
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.8)
 
             self._cache.invalidate()
             tree = await self._cache.get(self._adb)
