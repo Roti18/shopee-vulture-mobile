@@ -1,0 +1,12 @@
+{
+  "product": {
+    "url": "",
+    "name": "",
+    "variant": "",
+    "payment_method": "SeaBank Virtual Account",
+    "minimum_stock": 1,
+    "purchase_quantity": 1,
+    "stock_mode": "any",
+    "restock_limit": 3
+  }
+}
