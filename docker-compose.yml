@@ -6,6 +6,10 @@ services:
     container_name: shopee-restock-bot
     restart: unless-stopped
 
+    # Jalankan dengan UID host agar bisa nulis ke volume mounts
+    # Ganti 1000:1000 dengan UID:GID user VPS kamu (cek pake 'id')
+    user: "1000:1000"
+
     # Baca secrets dari file .env (JANGAN hardcode di sini)
     env_file:
       - data/.env
