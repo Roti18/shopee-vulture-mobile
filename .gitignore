@@ -1,0 +1,62 @@
+# ── Secrets & Environment ─────────────────────────────────────────────────────
+data/.env
+.env
+
+# ── Database (runtime state) ──────────────────────────────────────────────────
+# JANGAN commit database — di-generate saat pertama kali bot dijalankan
+data/bot.db
+data/bot.db-wal
+data/bot.db-shm
+
+# ── Runtime files ─────────────────────────────────────────────────────────────
+data/ui_dump.xml
+data/runtime.json          # deprecated — digantikan SQLite
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Screenshots ───────────────────────────────────────────────────────────────
+screenshots/
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# ── Virtual Environment ───────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+ENV/
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+# Jangan ignore docker-compose.yml dan Dockerfile
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Claude Code / Agent — jangan commit settings lokal ────────────────────────
+.claude/settings.local.json
+.claude/projects/
+.claude/worktrees/
+
+# ── Master prompt — internal, jangan ke publik ─────────────────────────────────
+promt.txt
