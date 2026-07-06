@@ -109,6 +109,7 @@ class TieredRecovery:
         """
         log.info("Recovery L1: dump XML ulang")
         tree = await self._cache.get(self._adb, force=True)
+        if tree is None:
             log.warning("Recovery L1: dump gagal → naik L2")
             return WorkflowState.RECOVERY
 
