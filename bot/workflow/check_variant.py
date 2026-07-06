@@ -132,10 +132,11 @@ class CheckVariantHandler:
 
         # ── 5. Set purchase quantity jika > 1 ────────────────────────────
         if self._product.purchase_quantity > 1:
-            # Dump ulang karena layout varian berubah abis tap variant
-            # set_purchase_quantity handle dump + resolve + tap
+            # plus_el di-resolve dari dump pertama (resource_id tetap = buttonPlus)
+            plus_el = parser.get_plus_button()
             ok = await vacts.set_purchase_quantity(
                 self._adb, self._cache, self._product.purchase_quantity,
+                plus_button_el=plus_el,
             )
             if not ok:
                 log.error("CHECK_VARIANT: gagal set qty %d", self._product.purchase_quantity)
