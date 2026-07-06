@@ -60,15 +60,24 @@ def get_logger(name: str) -> logging.Logger:
     sh.setLevel(logging.INFO)
     sh.setFormatter(JsonFormatter())
 
-    # ── File (human) ─────────────────────────────────────────
-    fh = RotatingFileHandler(
-        LOG_DIR / "bot.log",
-        maxBytes=10 * 1024 * 1024,
-        backupCount=5,
-        encoding="utf-8",
-    )
-    fh.setLevel(logging.DEBUG)
-    fh.setFormatter(HumanFormatter())
+    # ── File (human) — fallback ke stdout kalo gak bisa nulis ──────────
+    log_path = LOG_DIR / "bot.log"
+    try:
+        LOG_DIR.mkdir(parents=True, exist_ok=True)
+        fh = RotatingFileHandler(
+            log_path,
+            maxBytes=10 * 1024 * 1024,
+            backupCount=5,
+            encoding="utf-8",
+        )
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(HumanFormatter())
+        logger.addHandler(fh)
+    except (PermissionError, OSError) as exc:
+        # Fallback: file log gak bisa ditulis (biasanya karena Docker volume owner mismatch)
+        # Log ke stdout aja — Docker logs udah cukup
+        import warnings
+        warnings.warn(f"File logging disabled: {exc}")
 
     logger.addHandler(sh)
     logger.addHandler(fh)

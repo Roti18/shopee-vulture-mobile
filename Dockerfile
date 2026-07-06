@@ -28,11 +28,19 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY bot/ bot/
 
-# Direktori yang akan di-mount sebagai volume
-RUN mkdir -p data logs screenshots
+# Buat user non-root
+RUN groupadd -r botuser && useradd -r -g botuser botuser
+
+# Buat direktori volume, set permission 777 agar bisa ditulis siapapun
+# (volume dari host punya root:root, permission 777 biar botuser bisa nulis walau ownernya root)
+RUN mkdir -p /app/data /app/logs /app/screenshots /tmp && \
+    chmod 777 /app/data /app/logs /app/screenshots /tmp && \
+    chown -R botuser:botuser /app
+
+USER botuser
 
 # Healthcheck: verifikasi file heartbeat yang ditulis bot setiap 5 menit
-# Jika file tidak ada atau lebih dari 10 menit tidak diupdate → unhealthy
+# Jika file tidak ada atau lebih dari 10 menit tidak diupdate -> unhealthy
 HEALTHCHECK --interval=5m --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "\
 import time, os; \
@@ -40,10 +48,5 @@ f='/tmp/bot_health'; \
 assert os.path.exists(f), 'Healthcheck file missing'; \
 age=time.time()-os.path.getmtime(f); \
 assert age < 600, f'Healthcheck stale: {age:.0f}s'"
-
-# Jalankan sebagai non-root user untuk keamanan
-RUN groupadd -r botuser && useradd -r -g botuser botuser
-RUN chown -R botuser:botuser /app
-USER botuser
 
 CMD ["python", "-m", "bot.main"]
