@@ -1,0 +1,319 @@
+{
+  "timestamp": "2026-07-05T19:30:00",
+  "device": "Android - Shopee ID",
+  "resolution": "1080x2265",
+  "product": {
+    "name": "Mykonos Monaco Royale Extrait de Parfum 100ml",
+    "price": "Rp327.180",
+    "price_with_voucher": "Rp327.180 (Dengan Voucher)",
+    "original_price": "Rp399.000 (estimated from diskon 18%)",
+    "discount": "Diskon 18%, Hemat Rp71,82RB",
+    "sold": "1RB+ Terjual",
+    "rating": "4.9 (428 ulasan)",
+    "stock_status": "HABIS",
+    "official_store": true
+  },
+  "ui_elements": {
+    "back_button": {
+      "resource_id": "buttonActionBarBack",
+      "bounds": "[0,113][132,223]",
+      "tap_center": [66, 168]
+    },
+    "product_image": {
+      "resource_id": "sectionProductImages",
+      "bounds": "[0,0][1080,1080]"
+    },
+    "stock_label": {
+      "text": "Habis",
+      "bounds": "[483,513][597,568]",
+      "tap_center": [540, 540]
+    },
+    "find_other_products": {
+      "text": "Habis? Temukan Produk Lainnya",
+      "bounds": "[33,959][646,1047]",
+      "tap_center": [340, 1003]
+    },
+    "price_section": {
+      "resource_id": "sectionProductPrice",
+      "bounds": "[33,1212][1047,1278]"
+    },
+    "product_name_label": {
+      "resource_id": "labelProductPageProductName",
+      "text": "0Mykonos Monaco Royale Extrait de Parfum 100ml",
+      "bounds": "[33,1468][1047,1556]"
+    },
+    "promo_section": {
+      "resource_id": "labelPromotions",
+      "bounds": "[33,1361][1003,1413]"
+    },
+    "countdown_timer": {
+      "resource_id": "sectionCounter",
+      "bounds": "[772,1097][1047,1163]",
+      "note": "Flash sale countdown"
+    },
+    "shipping_info": {
+      "text": "Garansi tiba 8 - 11 Jul",
+      "bounds": "[99,1623][477,1667]"
+    },
+    "bottom_buttons": {
+      "chat": {
+        "resource_id": "buttonProductChatNow",
+        "bounds": "[0,2224][270,2265]",
+        "tap_center": [135, 2245]
+      },
+      "add_to_cart": {
+        "resource_id": "buttonProductAddCart",
+        "bounds": "[270,2224][540,2265]",
+        "tap_center": [405, 2245]
+      },
+      "buy_now": {
+        "resource_id": "buttonProductBuyNow",
+        "text": "Beli Dengan Voucher",
+        "text_bounds": "[630,2241][991,2265]",
+        "bounds": "[540,2224][1080,2265]",
+        "tap_center": [810, 2245],
+        "price_text": "Rp327.180"
+      }
+    }
+  },
+  "variant_popup": {
+    "container": {
+      "resource_id": "sectionTierVariation",
+      "bounds": "[0,1579][1080,2265]",
+      "note": "Modal ini muncul setelah tap 'Beli Dengan Voucher'"
+    },
+    "close_button": {
+      "resource_id": "buttonClose",
+      "bounds": "[965,1587][1072,1694]",
+      "tap_center": [1018, 1640]
+    },
+    "variant_item": {
+      "bounds": "[34,1613][386,1965]",
+      "tap_center": [210, 1789],
+      "note": "Tap variant untuk milih. resource_id dynamic (imageItemIcon_id-...)",
+      "ready_stock_example": {
+        "image_id": "imageItemIcon_id-11134207-8224z-mk7u52sh8gsid2",
+        "stock_text": "Stok: 17",
+        "stock_text_bounds": "[421,1923][572,1967]"
+      },
+      "empty_stock_example": {
+        "image_id": "imageItemIcon_id-11134207-8224o-mk7nukr4raww06",
+        "has_overlay_label": true,
+        "overlay_text": "Habis",
+        "overlay_bounds": "[167,1915][253,1954]",
+        "stock_text": "Stok: 0",
+        "stock_text_bounds": "[421,1923][550,1967]"
+      }
+    },
+    "price_ready": {
+      "discounted_price": "Rp327.180",
+      "discounted_bounds": "[421,1802][669,1868]",
+      "original_price": "Rp399.000",
+      "original_bounds": "[719,1806][881,1872]",
+      "note": "Ada coretan harga asli — berarti diskon lagi aktif"
+    },
+    "price_empty": {
+      "price": "Rp399.000",
+      "bounds": "[421,1802][669,1868]",
+      "note": "Harga penuh, gak ada coretan — varian ini habis"
+    },
+    "quantity": {
+      "edittext": "1",
+      "bounds": "[866,2046][976,2118]"
+    },
+    "button_minus": {
+      "resource_id": "buttonMinus",
+      "bounds": "[794,2046][866,2118]",
+      "tap_center": [830, 2082]
+    },
+    "button_plus": {
+      "resource_id": "buttonPlus",
+      "bounds": "[976,2046][1047,2118]",
+      "tap_center": [1011, 2082]
+    },
+    "submit_button": {
+      "resource_id": "buttonCartPanelSubmit",
+      "bounds": "[11,2208][1069,2265]",
+      "tap_center": [540, 2236],
+      "when_ready": {
+        "text": "Beli Sekarang",
+        "text_bounds": "[407,2246][673,2265]"
+      },
+      "when_empty": {
+        "text": "Habis? Temukan Produk Lainnya",
+        "text_bounds": "[221,2246][860,2265]"
+      }
+    }
+  },
+  "payment_page": {
+    "title": {
+      "text": "Pembayaran",
+      "label": "Pembayaran",
+      "bounds": "[132,135][482,201]"
+    },
+    "back_button": {
+      "resource_id": "buttonActionBarBack",
+      "bounds": "[0,113][132,223]",
+      "tap_center": [66, 168],
+      "note": "Klik kiri atas buat balik ke checkout"
+    },
+    "total_payment": {
+      "text": "Total Pembayaran",
+      "amount": "Rp42.700",
+      "amount_bounds": "[881,295][1047,348]"
+    },
+    "countdown": {
+      "text": "Bayar Dalam",
+      "timer": "23 jam 58 menit 55 detik",
+      "deadline": "Jatuh tempo 6 Juli 2026, 20:52"
+    },
+    "bank_info": {
+      "bank": "SeaBank",
+      "method": "Virtual Account",
+      "va_number": "781  0811 3000 073",
+      "va_display": "781 08113000073",
+      "copy_button": {
+        "text": "Salin",
+        "bounds": "[937,865][1047,918]",
+        "tap_center": [992, 891]
+      },
+      "note_1": "Proses verifikasi kurang dari 10 menit setelah pembayaran berhasil",
+      "note_2": "Menerima transfer dari semua bank. Pastikan memilih SeaBank sebagai bank tujuan."
+    },
+    "instructions": {
+      "steps": [
+        "Klik Buka Aplikasi SeaBank dan log in ke akun SeaBank",
+        "Masuk ke halaman Transfer Virtual Account untuk memeriksa Virtual Account Number 781 08113000073",
+        "Pastikan jumlah pembayaran sudah benar dan klik Selanjutnya",
+        "Periksa semua informasi yang ada di layar sudah benar, kemudian klik Konfirmasi dan masukkan PIN",
+        "Transaksi akan diproses di aplikasi SeaBank. Setelah transaksi berhasil, klik Selesai untuk kembali ke aplikasi Shopee"
+      ]
+    },
+    "open_seabank_button": {
+      "text": "Buka Aplikasi SeaBank",
+      "bounds": "[22,2208][1058,2265]",
+      "tap_center": [540, 2236],
+      "note": "Buka SeaBank app — butuh action manual / automation terpisah"
+    }
+  },
+  "order_success_page": {
+    "title": "Pembayaran Tertunda",
+    "header": {
+      "title_icon": "labelOSPHeaderTitle",
+      "title_text": "Pembayaran Tertunda",
+      "subtitle": "Mohon bayar sebesar Rp42.700 sebelum 06-07-2026 20:52. Cek \"Pesanan Saya\" untuk informasi lebih lanjut.",
+      "subtitle_label": "labelOSPHeaderSubtitle"
+    },
+    "buttons": {
+      "container": "labelOSPHeaderButtons",
+      "beranda": {
+        "text": "Beranda",
+        "bounds": "[33,559][526,663]",
+        "tap_center": [280, 611]
+      },
+      "pesanan_saya": {
+        "text": "Pesanan Saya",
+        "bounds": "[554,559][1047,663]",
+        "tap_center": [800, 611]
+      }
+    },
+    "recommendations": {
+      "title": "Kamu Mungkin Juga Suka",
+      "products": "Product cards in 2-column grid layout"
+    }
+  },
+  "checkout_page": {
+    "title": {
+      "text": "Checkout",
+      "resource_id": "labelActionBarTitle",
+      "bounds": "[132,135][1036,201]"
+    },
+    "back_button": {
+      "resource_id": "buttonActionBarBack",
+      "bounds": "[0,113][132,223]",
+      "tap_center": [66, 168]
+    },
+    "address": {
+      "name": "Roni",
+      "detail": "Kos Ritia, Jalan Raya Telang No. 15, Telang, Kamal, KAB. BANGKALAN, JAWA TIMUR, ID 69162",
+      "phone": "(+62) 838-7834-5386"
+    },
+    "shop": {
+      "name": "Watsons Indonesia Official",
+      "label": "labelShopName",
+      "official_shop_icon": "imageOfficialShopLabel"
+    },
+    "product": {
+      "name": "Mykonos Satin Blanc Extrait de Parfum 100ml",
+      "price": "Rp327.180",
+      "original_price": "Rp399.000",
+      "quantity": "x1",
+      "image": "itemImage"
+    },
+    "insurance": {
+      "name": "Proteksi Efek Samping Produk",
+      "checkbox": "buttonCheckBoxNotChecked",
+      "price": "Rp3.000",
+      "note": "UNCHECKED — biarin aja gak dicentang"
+    },
+    "voucher_toko": {
+      "resource_id": "labelPlatformVoucher",
+      "text": "Voucher Toko",
+      "hint": "Gunakan/ masukkan kode"
+    },
+    "shipping": {
+      "section": "Opsi Pengiriman",
+      "selected": "Reguler",
+      "original_price": "Rp8.000",
+      "final_price": "Rp0",
+      "eta": "Garansi tiba 8 - 11 Jul",
+      "alt_option": {
+        "name": "Hemat Kargo",
+        "price": "Rp5.000 -> Rp0",
+        "eta": "Garansi tiba 9 - 11 Jul"
+      }
+    },
+    "order_total": {
+      "label": "labelOrderTotal",
+      "text": "Total 1 Produk",
+      "price": "Rp399.000",
+      "price_label": "labelOrderTotalPrice"
+    },
+    "voucher_applied": {
+      "discount": "-Rp71,82RB",
+      "free_shipping": "Gratis Ongkir"
+    },
+    "coin_redeem": {
+      "text": "Tukarkan 40 Koin Shopee",
+      "label": "labelRedeemCoins",
+      "note": "UNCHECKED — biarin aja"
+    },
+    "payment_method": {
+      "resource_id": "checkoutPaymentMethod",
+      "bounds": "[0,0][0,0]",
+      "note": "❗ GAK KELIATAN di XML ini — harus scroll dulu"
+    },
+    "total_bottom": {
+      "container": "checkoutTotalBottom",
+      "total_label": "Total",
+      "total_price": "Rp330.180",
+      "price_label": "labelTotalPayment",
+      "savings": "Hemat Rp79.820",
+      "place_order_button": {
+        "resource_id": "buttonPlaceOrder",
+        "text": "Buat Pesanan",
+        "bounds": "[728,2216][1058,2265]",
+        "tap_center": [893, 2240]
+      }
+    }
+  },
+  "notes": {
+    "stock_check_level_1": "CEK DI HALAMAN PRODUK: Cari text 'Habis' bounds [483,513] di image section. ADA → out of stock, skip. TIDAK ADA → lanjut tap 'Beli Dengan Voucher'.",
+    "stock_check_level_2": "CEK DI POPUP VARIAN: Abis tap 'Beli Dengan Voucher', dump XML lagi. Cari text 'Stok:'. Kalo 'Stok: 0' → close popup, skip. Kalo 'Stok: 17' (atau >0) → GAS!",
+    "stock_check_level_3": "KALO ADA STOK: Tap variant [210, 1789], cek tombol submit jadi 'Beli Sekarang' — tap aja [540, 2236].",
+    "buy_flow": "Tap 'Beli Dengan Voucher' (810, 2245) → modal varian muncul → check 'Stok:' di XML → kalo >0 tap varian → tap 'Beli Sekarang' → checkout → bayar",
+    "no_stock_flow": "Tap 'Beli Dengan Voucher' (810, 2245) → modal muncul → liat 'Stok: 0' atau 'Habis' → tap close [1018, 1640] → balik ke halaman produk",
+    "detection_method": "Pakai XML parsing: grep -o 'Stok: [0-9]*' → extract angka. Kalo >=1, gas. Kalo 0, close.",
+    "screen_size": "1080x2265 — semua koordinat tap berdasarkan resolusi ini"
+  }
+}
