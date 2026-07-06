@@ -54,8 +54,8 @@ async def wait_for_product_page(
     await asyncio.sleep(0.3)
 
     while (time.monotonic() - t0) < max_wait:
-        # Pake force=True abis halaman baru
-        tree = await cache.get(adb, force=True)
+        # Pake TTL cache — gak perlu dump tiap poll interval
+        tree = await cache.get(adb)
         if tree is None:
             await asyncio.sleep(poll)
             continue

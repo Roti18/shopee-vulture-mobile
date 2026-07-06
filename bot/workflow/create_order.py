@@ -44,7 +44,7 @@ class CreateOrderHandler:
         parser = None
 
         while (time.monotonic() - t0) < max_wait:
-            tree = await self._cache.get(self._adb, force=True)
+            tree = await self._cache.get(self._adb)
             if tree is None:
                 await asyncio.sleep(0.3)
                 continue
@@ -61,7 +61,7 @@ class CreateOrderHandler:
                 # Layar loading atau unknown, tunggu sebentar agar render selesai
                 log.info("CreateOrder: layar bukan checkout (%s), tunggu transisi...", screen.value)
                 await asyncio.sleep(0.8)
-                await self._cache.get(self._adb, force=True)
+                await self._cache.get(self._adb)
                 parser = CheckoutParser(self._cache)
                 break
 

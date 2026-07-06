@@ -98,7 +98,7 @@ async def wait_for_variant_popup(
     await asyncio.sleep(0.1)
 
     while (time.monotonic() - t0) < max_wait:
-        tree = await cache.get(adb, force=True)
+        tree = await cache.get(adb)
         if tree is None:
             await asyncio.sleep(poll)
             continue

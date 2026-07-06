@@ -85,7 +85,7 @@ class OpenProductHandler:
         await asyncio.sleep(0.3)
 
         while (time.monotonic() - t0) < max_wait:
-            tree = await self._cache.get(self._adb, force=True)
+            tree = await self._cache.get(self._adb)
             if tree is not None:
                 # Cek cuma elemen BUY_NOW_BUTTON — bukan full page detect
                 if ProductParser(self._cache).get_buy_now_button() is not None:
