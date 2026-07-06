@@ -80,6 +80,27 @@ async def main() -> None:
     cache = XMLCache()
     bus = EventBus()
 
+    # ── Inisialisasi koneksi ADB ─────────────────────────────────────────
+    # Coba connect via Wi-Fi dulu (kalo ada), fallback ke USB.
+    if adb.wifi_host:
+        connected = await adb.connect_wifi()
+        if connected:
+            log.info("ADB: terhubung via Wi-Fi ke %s", adb.wifi_host)
+        else:
+            log.warning("ADB: koneksi Wi-Fi gagal, fallback ke USB...")
+    else:
+        log.info("ADB: tanpa Wi-Fi host, deteksi otomatis via USB...")
+
+    # Verifikasi device beneran nyambung
+    device_ok = await adb.is_connected()
+    if device_ok:
+        log.info("ADB: device terdeteksi — %s", adb.device_serial or "(default)")
+    else:
+        log.warning(
+            "ADB: device TIDAK terdeteksi — bot tetap jalan, "
+            "tapi /start bakal ditolak sampai device nyambung."
+        )
+
     # Bot selalu mulai dalam mode IDLE — user harus kirim /start via Telegram
     runtime = BotRuntimeState(
         mode=BotMode.IDLE,
