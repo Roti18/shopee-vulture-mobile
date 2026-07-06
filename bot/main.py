@@ -217,12 +217,36 @@ async def main() -> None:
 
     log.info("Semua komponen siap. Bot IDLE — kirim /start via Telegram.")
 
-    async with tg_app:
-        await tg_app.initialize()
-        await tg_app.start()
-        await tg_app.updater.start_polling(drop_pending_updates=True)
-
+    # ── Inisialisasi Telegram dengan retry ──────────────────────────────────
+    # Biar gak mati total kalo Telegram API unreachable (timeout/proxy/DNS).
+    tg_ready = False
+    for attempt in range(1, 4):
         try:
+            await asyncio.wait_for(tg_app.initialize(), timeout=10)
+            await asyncio.wait_for(tg_app.start(), timeout=10)
+            await asyncio.wait_for(
+                tg_app.updater.start_polling(drop_pending_updates=True),
+                timeout=15,
+            )
+            tg_ready = True
+            log.info("Telegram bot siap (percobaan ke-%d)", attempt)
+            break
+        except Exception as exc:
+            log.warning(
+                "Telegram init gagal (percobaan %d/3): %s",
+                attempt, exc,
+            )
+            if attempt < 3:
+                await asyncio.sleep(5)
+            else:
+                log.error(
+                    "Telegram unreachable setelah 3 percobaan — bot jalan "
+                    "tanpa Telegram. Kirim pesan manual ke admin."
+                )
+
+    # ── Jalankan state machine & schedulers ────────────────────────────────
+    try:
+        if tg_ready:
             await asyncio.gather(
                 sm.run(),
                 watchdog.start(),
@@ -232,7 +256,18 @@ async def main() -> None:
                 health.start(),
                 stop_event.wait(),
             )
-        finally:
+        else:
+            # Bot tetap jalan tanpa Telegram (mode CLI-only)
+            log.info("Bot jalan tanpa Telegram — /start via console gak bisa.")
+            await asyncio.gather(
+                sm.run(),
+                watchdog.start(),
+                heartbeat.start(),
+                blackout.start(),
+                health.start(),
+                stop_event.wait(),
+            )
+    finally:
             log.info("Shutdown: menyimpan state ke DB...")
             runtime.mode = BotMode.STOPPED
             await sync_runtime_to_db()
@@ -244,10 +279,11 @@ async def main() -> None:
             daily.stop()
             health.stop()
 
-            # Stop Telegram
-            await tg_app.updater.stop()
-            await tg_app.stop()
-            await tg_app.shutdown()
+            # Stop Telegram (kalo sempet init)
+            if tg_ready:
+                await tg_app.updater.stop()
+                await tg_app.stop()
+                await tg_app.shutdown()
 
             # Close DB
             await cfg.db.close()
