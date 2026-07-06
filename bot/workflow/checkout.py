@@ -42,19 +42,17 @@ class CheckoutHandler:
             log.error("CHECKOUT: tombol 'Buat Pesanan' tidak ditemukan")
             return WorkflowState.RECOVERY
 
-        # ── Tap Loop ─────────────────────────────────────────────────────────
-        # Tap terus sampai berhasil. User tinggal /stop kalo mau.
+        # ── Tap Loop 0.5s ──────────────────────────────────────────────────
+        # Tap setiap 0.5 detik sampai berhasil.
+        # User tinggal /stop kalo mau berhenti.
         while True:
             log.info(
                 "Tap 'Buat Pesanan' via [%s] at (%d, %d)",
                 el.resolved_via, el.tap_x, el.tap_y
             )
             await self._adb.tap(el.tap_x, el.tap_y)
+            await asyncio.sleep(0.5)
 
-            # Tunggu bentar biar UI ngerespon
-            await asyncio.sleep(0.3)
-
-            # Cek layar sekarang
             self._cache.invalidate()
             tree = await self._cache.get(self._adb)
             if tree is None:
@@ -64,14 +62,5 @@ class CheckoutHandler:
             log.info("CHECKOUT: screen = %s", screen.value)
 
             if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
-                log.info("CHECKOUT: berhasil pindah ke %s", screen.value)
+                log.info("CHECKOUT: berhasil -> %s", screen.value)
                 return WorkflowState.VERIFY_PAYMENT
-
-            if screen == ScreenType.UNKNOWN:
-                # Lagi loading, tunggu bentar trus cek lagi
-                await asyncio.sleep(0.5)
-                self._cache.invalidate()
-                await self._cache.get(self._adb)
-                screen = CheckoutParser(self._cache).detect_screen()
-                if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
-                    return WorkflowState.VERIFY_PAYMENT
