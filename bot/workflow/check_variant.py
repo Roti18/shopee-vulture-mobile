@@ -127,17 +127,20 @@ class CheckVariantHandler:
             await vacts.close_variant_popup(self._adb, self._cache)
             return WorkflowState.RECOVERY
 
-        # Jeda super singkat agar UI Android mendeteksi tap varian
-        await asyncio.sleep(0.15)
+        # Jeda agar UI Android mendeteksi tap varian
+        await asyncio.sleep(0.3)
 
         # ── 5. Set purchase quantity jika > 1 ────────────────────────────
         if self._product.purchase_quantity > 1:
-            # Pre-resolve plus button dari dump pertama untuk hemat 1 dump
-            plus_el = parser.get_plus_button()
-            await vacts.set_purchase_quantity(
+            # Dump ulang karena layout varian berubah abis tap variant
+            # set_purchase_quantity handle dump + resolve + tap
+            ok = await vacts.set_purchase_quantity(
                 self._adb, self._cache, self._product.purchase_quantity,
-                plus_button_el=plus_el,
             )
+            if not ok:
+                log.error("CHECK_VARIANT: gagal set qty %d", self._product.purchase_quantity)
+                await vacts.close_variant_popup(self._adb, self._cache)
+                return WorkflowState.RECOVERY
 
         # ── 6. Tap submit button (Beli Sekarang) ────────────────────────────
         log.info("Tap submit button (Beli Sekarang) via [%s] at (%d, %d)", resolved_via, submit_x, submit_y)
