@@ -68,6 +68,21 @@ class StateMachine:
             while self._runtime.mode in (BotMode.STOPPED, BotMode.IDLE, BotMode.PAUSED, BotMode.BLACKOUT):
                 await asyncio.sleep(1)
 
+            # ── Pastikan device nyantol sebelum state transition pertama ──
+            if not await self._adb.is_connected():
+                log.warning("StateMachine: ADB device belum terhubung, tunggu 3s...")
+                await asyncio.sleep(3)
+                continue
+
+            # ── Reset runtime state dari sesi sebelumnya ───────────────────
+            # Kalo startup state-nya RECOVERY, jangan diulang — reset ke IDLE
+            # biar user /start dulu dari Telegram.
+            if self._runtime.workflow_state == WorkflowState.RECOVERY:
+                log.info("StateMachine: reset state RECOVERY → IDLE (startup fresh)")
+                self._runtime.workflow_state = WorkflowState.IDLE
+                self._runtime.mode = BotMode.IDLE
+                continue
+
             state = self._runtime.workflow_state
             handler = self._handlers.get(state)
 

@@ -195,6 +195,7 @@ async def main() -> None:
         bus=bus,
         runtime=runtime,
         product=cfg.product,
+        adb=adb,
         get_config_fn=cfg.get_config_dict,
         set_config_fn=cfg.set_config,
     )

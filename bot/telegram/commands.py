@@ -33,12 +33,14 @@ class CommandHandlers:
         bus: EventBus,
         runtime: BotRuntimeState,
         product: ProductConfig,
+        adb: "ADBClient",
         get_config_fn,   # callable → dict (dari AppConfig)
         set_config_fn,   # async callable (key, value) → None
     ) -> None:
         self._bus = bus
         self._runtime = runtime
         self._product = product
+        self._adb = adb
         self._get_config = get_config_fn
         self._set_config = set_config_fn
 
@@ -54,6 +56,19 @@ class CommandHandlers:
                 "Gunakan perintah:\n"
                 "/setproduct &lt;url&gt;\n\n"
                 "Contoh: /setproduct https://shopee.co.id/...",
+                parse_mode="HTML",
+            )
+            return
+        # Pastikan device nyambung sebelum mulai
+        if self._adb is not None:
+            device_ok = await self._adb.is_connected()
+        else:
+            device_ok = False
+        if not device_ok:
+            await update.message.reply_text(
+                "❌ <b>ADB device tidak terdeteksi</b>\n\n"
+                "Pastikan HP sudah terhubung (USB/Wi-Fi) sebelum /start.\n"
+                "Cek dengan /status setelah connect.",
                 parse_mode="HTML",
             )
             return
