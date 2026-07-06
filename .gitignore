@@ -10,7 +10,7 @@ data/bot.db-shm
 
 # ── Runtime files ─────────────────────────────────────────────────────────────
 data/ui_dump.xml
-data/runtime.json          # deprecated — digantikan SQLite
+data/runtime.json
 
 # ── Logs ──────────────────────────────────────────────────────────────────────
 logs/
