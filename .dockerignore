@@ -1,0 +1,47 @@
+# ── Python ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.whl
+
+# ── IDE / OS ─────────────────────────────────────────────────────
+.git/
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ── Project runtime (mounted as volume, no need in image) ───────
+data/bot.db
+data/bot.db-wal
+data/bot.db-shm
+data/ui_dump.xml
+data/runtime.json
+data/.env
+logs/
+screenshots/
+
+# ── Test / docs ──────────────────────────────────────────────────
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.md
+
+# ── Git history ──────────────────────────────────────────────────
+.gitattributes
+.gitignore
