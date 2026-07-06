@@ -42,35 +42,36 @@ class CheckoutHandler:
             log.error("CHECKOUT: tombol 'Buat Pesanan' tidak ditemukan")
             return WorkflowState.RECOVERY
 
-        # ── Tap Sekali ──────────────────────────────────────────────────────
-        # 1 tap doang. Kalau gagal, biar state machine + interval + recovery yang handle.
-        log.info(
-            "Tap 'Buat Pesanan' via [%s] at (%d, %d)",
-            el.resolved_via, el.tap_x, el.tap_y
-        )
-        await self._adb.tap(el.tap_x, el.tap_y)
+        # ── Tap Loop ─────────────────────────────────────────────────────────
+        # Tap terus sampai berhasil. User tinggal /stop kalo mau.
+        while True:
+            log.info(
+                "Tap 'Buat Pesanan' via [%s] at (%d, %d)",
+                el.resolved_via, el.tap_x, el.tap_y
+            )
+            await self._adb.tap(el.tap_x, el.tap_y)
 
-        # Tunggu sebentar, cek apakah layar udah pindah
-        await asyncio.sleep(0.5)
-        self._cache.invalidate()
-        tree = await self._cache.get(self._adb)
-        if tree is None:
-            log.error("CHECKOUT: XML dump gagal setelah tap")
-            return WorkflowState.RECOVERY
+            # Tunggu bentar biar UI ngerespon
+            await asyncio.sleep(0.3)
 
-        parser = CheckoutParser(self._cache)
-        screen = parser.detect_screen()
-
-        if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
-            return WorkflowState.VERIFY_PAYMENT
-
-        if screen == ScreenType.UNKNOWN:
-            await asyncio.sleep(0.5)
+            # Cek layar sekarang
             self._cache.invalidate()
-            await self._cache.get(self._adb)
-            screen = parser.detect_screen()
+            tree = await self._cache.get(self._adb)
+            if tree is None:
+                continue
+
+            screen = CheckoutParser(self._cache).detect_screen()
+            log.info("CHECKOUT: screen = %s", screen.value)
+
             if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
+                log.info("CHECKOUT: berhasil pindah ke %s", screen.value)
                 return WorkflowState.VERIFY_PAYMENT
 
-        log.error("CHECKOUT: gagal, screen=%s", screen.value)
-        return WorkflowState.RECOVERY
+            if screen == ScreenType.UNKNOWN:
+                # Lagi loading, tunggu bentar trus cek lagi
+                await asyncio.sleep(0.5)
+                self._cache.invalidate()
+                await self._cache.get(self._adb)
+                screen = CheckoutParser(self._cache).detect_screen()
+                if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
+                    return WorkflowState.VERIFY_PAYMENT
