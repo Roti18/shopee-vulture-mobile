@@ -143,36 +143,52 @@ class VariantParser(BaseParser):
         """
         Cari varian TANPA scan "Stok: N" — 2x lebih cepet.
 
-        Dipake di EXECUTE mode dimana kita gak butuh info stok.
-        Cari langsung target_variant di text node sekitar ikon varian.
-
-        Returns ResolvedElement yang bisa di-tap, atau None.
+        Strategi (3 tingkat):
+        1. Cari node yg text/content-desc mengandung target_variant
+        2. Tap ImageView clickable terdekat
+        3. Gagal → return None (biar caller fallback)
         """
         nodes = self._cache.all_nodes()
         root = self._cache.root()
         search_scope = list(root.iter("node")) if root is not None else nodes
 
-        if target_variant:
-            # Cari node text yang mengandung nama varian target
-            for node in search_scope:
-                text = node.get("text", "") or node.get("content-desc", "")
-                if target_variant.lower() in text.lower():
-                    node_bounds = self._parse_bounds_tuple(node.get("bounds", ""))
-                    # Cari tappable ImageView terdekat
-                    for n2 in search_scope:
-                        if n2.get("class", "") == sel.VARIANT_ITEM_CLASS and n2.get("clickable", "false") == "true":
-                            n2_bounds = self._parse_bounds_tuple(n2.get("bounds", ""))
-                            if n2_bounds and node_bounds and self._bounds_near(node_bounds, n2_bounds, tolerance_x=100, tolerance_y=250):
-                                return self._make_result(n2, "fast_variant_target_text")
-                    # Fallback: tap node text langsung
-                    return self._make_result(node, "fast_variant_target_fallback")
+        # ── Bantu kumpulin semua teks dari node + child-nya ──────────
+        def _all_text(n: Element) -> str:
+            parts = [n.get("text", "") or "", n.get("content-desc", "") or ""]
+            for child in n.iter("node"):
+                t = child.get("text", "") or child.get("content-desc", "")
+                if t:
+                    parts.append(t)
+            return " ".join(parts)
 
-        # Tanpa target_variant: tap ImageView pertama yang clickable di container
+        if target_variant:
+            target_lower = target_variant.lower()
+            best_text_node = None
+
+            for node in search_scope:
+                full_text = _all_text(node)
+                if target_lower in full_text.lower():
+                    best_text_node = node
+                    break
+
+            if best_text_node is not None:
+                node_bounds = self._parse_bounds_tuple(best_text_node.get("bounds", ""))
+                # Cari tappable ImageView terdekat
+                for n2 in search_scope:
+                    if n2.get("class", "") == sel.VARIANT_ITEM_CLASS and n2.get("clickable", "false") == "true":
+                        n2_bounds = self._parse_bounds_tuple(n2.get("bounds", ""))
+                        if n2_bounds and node_bounds and self._bounds_near(node_bounds, n2_bounds, tolerance_x=100, tolerance_y=250):
+                            return self._make_result(n2, "fast_variant_target_img")
+                # Fallback: tap node itu langsung
+                return self._make_result(best_text_node, "fast_variant_target_text")
+
+        # ── Ga pake target, atau target gak ketemu ──────────────────────
+        # Coba tap ImageView clickable pertama di container varian
         container = self._by_resource_id(search_scope, sel.VARIANT_CONTAINER.resource_id)
         container_scope = list(container.iter("node")) if container is not None else search_scope
         for node in container_scope:
             if node.get("class", "") == sel.VARIANT_ITEM_CLASS and node.get("clickable", "false") == "true":
-                return self._make_result(node, "fast_variant_first_clickable")
+                return self._make_result(node, "fast_variant_first_img")
 
         log.debug("find_variant_fast: tidak ada varian clickable ditemukan")
         return None
