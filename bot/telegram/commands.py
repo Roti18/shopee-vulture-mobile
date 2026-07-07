@@ -44,11 +44,29 @@ class CommandHandlers:
         self._get_config = get_config_fn
         self._set_config = set_config_fn
 
+    # ── Helpers ─────────────────────────────────────────────────────────
+
+    def _get_mode_label(self) -> str:
+        if self._runtime.mode == BotMode.MONITOR:
+            return "📡 MONITOR (notif stok aja)"
+        if self._runtime.mode == BotMode.RUNNING:
+            return "🚀 EXECUTE (checkout otomatis)"
+        if self._runtime.mode == BotMode.BLACKOUT:
+            return "🌙 BLACKOUT"
+        if self._runtime.mode == BotMode.COOLDOWN:
+            return "💤 COOLDOWN"
+        return self._runtime.mode.value
+
     # ── Lifecycle ────────────────────────────────────────────────────────
 
     async def cmd_start(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
-        if self._runtime.mode == BotMode.RUNNING:
-            await update.message.reply_text("⚠️ Bot sudah berjalan. Kalau mau restart, /stop dulu.")
+        if self._runtime.mode in (BotMode.RUNNING, BotMode.MONITOR):
+            mode_label = "MONITOR" if self._runtime.mode == BotMode.MONITOR else "EXECUTE"
+            await update.message.reply_text(
+                f"⚠️ Bot sudah berjalan dalam mode <b>{mode_label}</b>.\n"
+                "Kalau mau ganti mode, /stop dulu.",
+                parse_mode="HTML",
+            )
             return
         if not self._product.url:
             await update.message.reply_text(
@@ -76,7 +94,13 @@ class CommandHandlers:
         self._runtime.workflow_state = WorkflowState.OPEN_PRODUCT
         self._runtime.metrics.last_state_change = datetime.now()
         await self._bus.emit(ev.BotStartedEvent())
-        await update.message.reply_text("🤖 <b>Bot dimulai</b> — monitoring + checkout aktif.", parse_mode="HTML")
+        await update.message.reply_text(
+            "🚀 <b>EXECUTE Mode Aktif</b>\n\n"
+            "Bot akan: Buka produk → cek stok → checkout otomatis → kirim bukti ke Telegram.\n\n"
+            "Tidak ada notifikasi stok — kamu cuma dikirimin screenshot pas sukses.\n\n"
+            "ℹ️ Kalau cuma mau pantau stok aja, pakai /monitor.",
+            parse_mode="HTML",
+        )
 
     async def cmd_stop(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         self._runtime.mode = BotMode.STOPPED
@@ -112,6 +136,14 @@ class CommandHandlers:
             await update.message.reply_text("📡 <b>Monitor mode dimatikan</b>.", parse_mode="HTML")
             return
 
+        if self._runtime.mode == BotMode.RUNNING:
+            await update.message.reply_text(
+                "⚠️ Bot sedang dalam mode <b>EXECUTE</b>.\n"
+                "Kalau mau ganti ke MONITOR, /stop dulu.",
+                parse_mode="HTML",
+            )
+            return
+
         if not self._product.url:
             await update.message.reply_text(
                 "❌ <b>URL produk belum diset</b>\n\n"
@@ -126,10 +158,10 @@ class CommandHandlers:
         await self._bus.emit(ev.BotStartedEvent())
         await update.message.reply_text(
             "📡 <b>Monitor Mode Aktif</b>\n\n"
-            "Bot akan memantau stok setiap interval.\n"
-            "Kalau stok tersedia, kamu dapat notifikasi.\n"
+            "Bot akan: Buka produk → cek stok → kirim notif ke Telegram.\n"
             "Tidak ada proses checkout otomatis.\n\n"
-            "Gunakan /monitor lagi untuk mematikan mode ini.",
+            "Gunakan /monitor lagi untuk mematikan mode ini.\n"
+            "Kalau mau checkout otomatis, pakai /start (EXECUTE mode).",
             parse_mode="HTML",
         )
 
@@ -148,7 +180,7 @@ class CommandHandlers:
 
         msg = (
             f"📊 <b>Status Bot</b>\n\n"
-            f"🔄 Mode: {'📡 MONITOR' if self._runtime.mode == BotMode.MONITOR else self._runtime.mode.value}\n"
+            f"🔄 Mode: {self._get_mode_label()}\n"
             f"📍 State: {self._runtime.workflow_state.value}\n"
             f"⏱ Runtime: {_fmt_duration(s.uptime_seconds)}\n\n"
             f"📦 Produk: {self._product.name or '—'}\n"
@@ -169,12 +201,15 @@ class CommandHandlers:
     async def cmd_help(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(
             "📋 <b>Daftar Perintah Bot</b>\n\n"
+            "━━━ <b>Mode Bot</b> ━━━\n"
+            "<b>EXECUTE</b> — Cek stok + checkout otomatis + kirim bukti\n"
+            "<b>MONITOR</b> — Cek stok + notif Telegram (tanpa checkout)\n\n"
             "━━━ <b>Kontrol</b> ━━━\n"
-            "/start — Mulai bot (monitoring + checkout otomatis)\n"
+            "/start — EXECUTE mode: cek stok, checkout, screenshot ke Telegram\n"
+            "/monitor — MONITOR mode: pantau stok, notif aja (toggle)\n"
             "/stop — Hentikan bot sepenuhnya\n"
             "/pause — Jeda sementara\n"
             "/resume — Lanjutkan setelah jeda\n"
-            "/monitor — Mode pantau: notif stok aja, gak checkout\n"
             "/status — Tampilkan status lengkap bot\n"
             "/help — Tampilkan bantuan ini\n\n"
             "━━━ <b>Produk</b> ━━━\n"
