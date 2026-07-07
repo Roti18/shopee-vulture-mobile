@@ -1,17 +1,19 @@
 """
 State: CHECK_VARIANT — satu-satunya tempat cek stok yang valid.
 
-Flow lengkap:
+Flow per mode:
+  MONITOR: stok >= threshold → emit alert Telegram → close popup → loop
+  EXECUTE: stok >= threshold → tap variant → tap submit → CHECKOUT
+
+Behaviour:
   1. Refresh XML dump dari popup varian
   2. Parse semua "Stok: N"
   3. Cek threshold (stock_mode + minimum_stock)
-  4. Jika tidak memenuhi → tutup popup → OPEN_PRODUCT
-  5. Jika memenuhi:
-     a. Emit VariantStockDetectedEvent (Telegram alert dikirim di sini)
-     b. Tap variant
-     c. Set purchase_quantity jika > 1
-     d. Verifikasi submit button = "Beli Sekarang"
-     e. → BUY_NOW
+  4. Tidak memenuhi → tutup popup → BUY_VOUCHER (loop)
+  5. MONITOR + stok >= threshold: emit alert, close popup, loop
+  6. EXECUTE + stok >= threshold: tap variant → refresh cache → set qty
+     → validasi submit "Beli Sekarang" → tap submit → tunggu checkout page
+  7. Setiap failure di EXECUTE → tutup popup → BUY_VOUCHER (gak RECOVERY)
 
 Stock check di halaman produk (Level 1) sudah DIHAPUS.
 Popup varian adalah SATU-SATUNYA sumber informasi stok yang valid.
@@ -96,34 +98,48 @@ class CheckVariantHandler:
                 await vacts.close_variant_popup(self._adb, self._cache)
                 return WorkflowState.BUY_VOUCHER
 
-            # Stok terdeteksi → emit alert
+            # Stok terdeteksi
             log.info(
                 "CHECK_VARIANT: stok ditemukan! count=%d variant='%s'",
                 variant_info.stock_count, self._product.variant,
             )
-            await self._bus.emit(
-                ev.VariantStockDetectedEvent(
-                    product_name=self._product.name,
-                    variant=self._product.variant or variant_info.variant_text,
-                    stock_count=variant_info.stock_count,
-                )
-            )
 
-            # MONITOR MODE: notif aja, gak beli
+            # MONITOR MODE: kirim alert stok ke Telegram
+            # EXECUTE mode: skip notif stok, langsung checkout (kirim bukti setelah sukses)
             if self._runtime and self._runtime.mode == BotMode.MONITOR:
+                await self._bus.emit(
+                    ev.VariantStockDetectedEvent(
+                        product_name=self._product.name,
+                        variant=self._product.variant or variant_info.variant_text,
+                        stock_count=variant_info.stock_count,
+                    )
+                )
                 log.info("MONITOR MODE: stok ada, notifikasi terkirim. Tutup popup dan loop.")
                 await vacts.close_variant_popup(self._adb, self._cache)
                 return WorkflowState.BUY_VOUCHER
+
+            # EXECUTE mode: checkout silent — lanjut tanpa notif stok
 
             # ── 4. Tap variant ──────────────────────────────────────────
             el = variant_info.resolved_element
             log.info("Tap variant via [%s] at (%d, %d)", el.resolved_via, el.tap_x, el.tap_y)
             tapped = await self._adb.tap(el.tap_x, el.tap_y)
             if not tapped:
-                log.error("CHECK_VARIANT: gagal tap variant")
+                log.error("CHECK_VARIANT: gagal tap variant — lanjut monitoring")
                 await vacts.close_variant_popup(self._adb, self._cache)
-                return WorkflowState.RECOVERY
-            await asyncio.sleep(0.3)
+                return WorkflowState.BUY_VOUCHER
+            await asyncio.sleep(0.5)  # tunggu UI update setelah tap variant
+
+            # ── Refresh cache setelah tap variant ──────────────────────
+            # UI popup berubah setelah milih variant (stok mungkin udah ludes).
+            # Wajib refresh biar validasi submit button akurat.
+            await self._cache.get(self._adb, force=True)
+            parser = VariantParser(self._cache)
+
+            # Resolve ulang submit button dari dump fresh
+            submit_el = parser.get_submit_button()
+            if submit_el is not None:
+                submit_x, submit_y, resolved_via = submit_el.tap_x, submit_el.tap_y, submit_el.resolved_via
         else:
             # ── Produk TANPA varian ────────────────────────────────────
             log.info("CHECK_VARIANT: produk tanpa varian, skip langsung ke submit")
@@ -137,24 +153,43 @@ class CheckVariantHandler:
                 plus_button_el=plus_el,
             )
             if not ok:
-                log.error("CHECK_VARIANT: gagal set qty %d", self._product.purchase_quantity)
+                log.error("CHECK_VARIANT: gagal set qty %d — lanjut monitoring", self._product.purchase_quantity)
                 await vacts.close_variant_popup(self._adb, self._cache)
-                return WorkflowState.RECOVERY
+                return WorkflowState.BUY_VOUCHER
 
-        # ── 6. Tap submit button (Beli Sekarang) ────────────────────────────
+        # ── 6. Validasi submit button — jangan tap kalo "Habis" ────────────
+        submit_text = parser.get_submit_button_text()
+        if "Beli Sekarang" not in submit_text:
+            log.warning(
+                "CHECK_VARIANT: submit button bukan 'Beli Sekarang': '%s' — "
+                "stok mungkin habis, tutup popup dan lanjut monitoring",
+                submit_text,
+            )
+            await vacts.close_variant_popup(self._adb, self._cache)
+            return WorkflowState.BUY_VOUCHER
+
+        # ── 7. Tap submit button (Beli Sekarang) ────────────────────────────
         log.info("Tap submit button (Beli Sekarang) via [%s] at (%d, %d)", resolved_via, submit_x, submit_y)
         ok = await self._adb.tap(submit_x, submit_y)
         if not ok:
-            log.error("CHECK_VARIANT: gagal tap submit button")
+            log.error("CHECK_VARIANT: gagal tap submit — lanjut monitoring")
             await vacts.close_variant_popup(self._adb, self._cache)
-            return WorkflowState.RECOVERY
+            return WorkflowState.BUY_VOUCHER
 
         # Langsung tunggu checkout page (skip BUY_NOW state — hemat 1 transisi)
         arrived = await cacts.wait_for_checkout_page(
             self._adb, self._cache, max_wait=15.0
         )
         if not arrived:
-            log.warning("CHECK_VARIANT: halaman checkout tidak muncul setelah tap submit")
-            return WorkflowState.RECOVERY
+            log.warning(
+                "CHECK_VARIANT: checkout page tidak muncul setelah tap submit — "
+                "stok habis duluan, navigasi balik ke produk"
+            )
+            # Popup udah di-dismiss sama tap submit, jadi press_back aja
+            # beberapa kali sampe balik ke halaman produk
+            await self._adb.press_back()
+            await asyncio.sleep(0.5)
+            await self._adb.press_back()
+            return WorkflowState.BUY_VOUCHER
 
         return WorkflowState.CHECKOUT
