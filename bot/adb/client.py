@@ -137,6 +137,24 @@ class ADBClient:
     # Screen
     # ------------------------------------------------------------------ #
 
+    async def is_screen_awake(self) -> bool:
+        """Cek apakah layar HP hidup (awake)."""
+        rc, out, _ = await self._run(["shell", "dumpsys", "power"])
+        if rc != 0:
+            return True  # default ke True kalo gagal biar gak salah bangunin
+        for line in out.splitlines():
+            if "mWakefulness=" in line:
+                return "Awake" in line
+        return True
+
+    async def ensure_screen_on(self) -> None:
+        """Pastikan layar HP hidup. Kalo mati/sleep, bangunin."""
+        if await self.is_screen_awake():
+            log.debug("Screen sudah awake")
+            return
+        log.info("Screen mati/sleep — bangunin...")
+        await self.unlock_screen()
+
     async def screen_on(self) -> None:
         await self.key(82)      # KEYCODE_MENU — wake up
 
