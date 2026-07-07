@@ -69,44 +69,46 @@ class CheckVariantHandler:
         else:
             submit_x, submit_y, resolved_via = submit_el.tap_x, submit_el.tap_y, submit_el.resolved_via
 
-        # ── 3. Deteksi apakah produk punya varian ──────────────────────────
-        # Cari teks "Stok: N" di popup. Kalo ada → produk dengan varian.
-        all_stocks = parser.get_all_stock_counts()
+        # ── 3. Cari varian target ────────────────────────────────────────
+        # MONITOR mode: cek stok + threshold dulu, baru cari varian
+        # EXECUTE mode: langsung cari varian target — cepet, skips get_all_stock_counts
+        is_monitor = self._runtime and self._runtime.mode == BotMode.MONITOR
 
-        if all_stocks:
-            # ── Produk DENGAN varian ──────────────────────────────────
-            variant_info = parser.find_variant_with_stock(
-                target_variant=self._product.variant,
-                minimum_stock=self._product.minimum_stock,
-                stock_mode=self._product.stock_mode,
-            )
+        if is_monitor:
+            # MONITOR: scan stok dulu buat log + threshold
+            all_stocks = parser.get_all_stock_counts()
 
-            if variant_info is None:
-                # Stok tidak ada / tidak memenuhi threshold
-                log.info(
-                    "CHECK_VARIANT: stok tidak memenuhi threshold "
-                    "(mode=%s, min=%d, ditemukan=%s)",
-                    self._product.stock_mode, self._product.minimum_stock, all_stocks,
+            if not all_stocks:
+                # Produk tanpa varian — skip ke submit
+                log.info("CHECK_VARIANT: produk tanpa varian, skip langsung ke submit")
+            else:
+                variant_info = parser.find_variant_with_stock(
+                    target_variant=self._product.variant,
+                    minimum_stock=self._product.minimum_stock,
+                    stock_mode=self._product.stock_mode,
                 )
-                await self._bus.emit(
-                    ev.StockEmptyEvent(
-                        variant=self._product.variant,
-                        stock_count=max(all_stocks),
-                        threshold=self._product.minimum_stock,
+
+                if variant_info is None:
+                    log.info(
+                        "CHECK_VARIANT: stok tidak memenuhi threshold "
+                        "(mode=%s, min=%d, ditemukan=%s)",
+                        self._product.stock_mode, self._product.minimum_stock, all_stocks,
                     )
+                    await self._bus.emit(
+                        ev.StockEmptyEvent(
+                            variant=self._product.variant,
+                            stock_count=max(all_stocks),
+                            threshold=self._product.minimum_stock,
+                        )
+                    )
+                    await vacts.close_variant_popup(self._adb, self._cache)
+                    return WorkflowState.BUY_VOUCHER
+
+                # Stok terdeteksi → kirim alert
+                log.info(
+                    "CHECK_VARIANT: stok ditemukan! count=%d variant='%s'",
+                    variant_info.stock_count, self._product.variant,
                 )
-                await vacts.close_variant_popup(self._adb, self._cache)
-                return WorkflowState.BUY_VOUCHER
-
-            # Stok terdeteksi
-            log.info(
-                "CHECK_VARIANT: stok ditemukan! count=%d variant='%s'",
-                variant_info.stock_count, self._product.variant,
-            )
-
-            # MONITOR MODE: kirim alert stok ke Telegram
-            # EXECUTE mode: skip notif stok, langsung checkout (kirim bukti setelah sukses)
-            if self._runtime and self._runtime.mode == BotMode.MONITOR:
                 await self._bus.emit(
                     ev.VariantStockDetectedEvent(
                         product_name=self._product.name,
@@ -117,32 +119,31 @@ class CheckVariantHandler:
                 log.info("MONITOR MODE: stok ada, notifikasi terkirim. Tutup popup dan loop.")
                 await vacts.close_variant_popup(self._adb, self._cache)
                 return WorkflowState.BUY_VOUCHER
-
-            # EXECUTE mode: checkout silent — lanjut tanpa notif stok
-
-            # ── 4. Tap variant ──────────────────────────────────────────
-            el = variant_info.resolved_element
-            log.info("Tap variant via [%s] at (%d, %d)", el.resolved_via, el.tap_x, el.tap_y)
-            tapped = await self._adb.tap(el.tap_x, el.tap_y)
-            if not tapped:
-                log.error("CHECK_VARIANT: gagal tap variant — lanjut monitoring")
-                await vacts.close_variant_popup(self._adb, self._cache)
-                return WorkflowState.BUY_VOUCHER
-            await asyncio.sleep(0.5)  # tunggu UI update setelah tap variant
-
-            # ── Refresh cache setelah tap variant ──────────────────────
-            # UI popup berubah setelah milih variant (stok mungkin udah ludes).
-            # Wajib refresh biar validasi submit button akurat.
-            await self._cache.get(self._adb, force=True)
-            parser = VariantParser(self._cache)
-
-            # Resolve ulang submit button dari dump fresh
-            submit_el = parser.get_submit_button()
-            if submit_el is not None:
-                submit_x, submit_y, resolved_via = submit_el.tap_x, submit_el.tap_y, submit_el.resolved_via
         else:
-            # ── Produk TANPA varian ────────────────────────────────────
-            log.info("CHECK_VARIANT: produk tanpa varian, skip langsung ke submit")
+            # EXECUTE: find_variant_fast — 2x cepet, tanpa regex "Stok: N"
+            variant_el = parser.find_variant_fast(
+                target_variant=self._product.variant,
+            )
+            if variant_el:
+                log.info("Tap variant via [%s] at (%d, %d)", variant_el.resolved_via, variant_el.tap_x, variant_el.tap_y)
+                tapped = await self._adb.tap(variant_el.tap_x, variant_el.tap_y)
+                if not tapped:
+                    log.error("CHECK_VARIANT: gagal tap variant — lanjut monitoring")
+                    await vacts.close_variant_popup(self._adb, self._cache)
+                    return WorkflowState.BUY_VOUCHER
+                await asyncio.sleep(0.5)
+
+                # Refresh cache setelah tap variant — UI berubah
+                await self._cache.get(self._adb, force=True)
+                parser = VariantParser(self._cache)
+
+                # Resolve ulang submit button dari dump fresh
+                submit_el = parser.get_submit_button()
+                if submit_el is not None:
+                    submit_x, submit_y, resolved_via = submit_el.tap_x, submit_el.tap_y, submit_el.resolved_via
+            else:
+                # Produk tanpa varian atau varian gak ditemukan
+                log.info("CHECK_VARIANT: varian tidak ditemukan, skip ke submit langsung")
 
         # ── 5. Set purchase quantity jika > 1 ────────────────────────────
         if self._product.purchase_quantity > 1:
