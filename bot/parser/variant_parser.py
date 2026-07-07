@@ -134,6 +134,58 @@ class VariantParser(BaseParser):
         return counts
 
     # ------------------------------------------------------------------ #
+    # Fast variant find (EXECUTE mode — tanpa scan stok)
+    # ------------------------------------------------------------------ #
+
+    def find_variant_fast(
+        self, target_variant: str = "",
+    ) -> ResolvedElement | None:
+        """
+        Cari varian TANPA scan "Stok: N" — 2x lebih cepet.
+
+        Dipake di EXECUTE mode dimana kita gak butuh info stok.
+        Cari langsung target_variant di text node sekitar ikon varian.
+
+        Returns ResolvedElement yang bisa di-tap, atau None.
+        """
+        nodes = self._cache.all_nodes()
+        root = self._cache.root()
+
+        # Cari container varian
+        container = self._by_resource_id(
+            list(root.iter("node")) if root is not None else nodes,
+            sel.VARIANT_CONTAINER.resource_id,
+        )
+        if container is None:
+            log.debug("find_variant_fast: container varian tidak ditemukan")
+            return None
+
+        search_scope = list(container.iter("node"))
+
+        if target_variant:
+            # Cari node text yang mengandung nama varian target
+            for node in search_scope:
+                text = node.get("text", "") or node.get("content-desc", "")
+                if target_variant.lower() in text.lower():
+                    node_bounds = self._parse_bounds_tuple(node.get("bounds", ""))
+                    # Cari tappable element terdekat
+                    for n2 in search_scope:
+                        if n2.get("class", "") == sel.VARIANT_ITEM_CLASS and n2.get("clickable", "false") == "true":
+                            n2_bounds = self._parse_bounds_tuple(n2.get("bounds", ""))
+                            if n2_bounds and node_bounds and self._bounds_near(node_bounds, n2_bounds, tolerance_x=100, tolerance_y=250):
+                                return self._make_result(n2, "fast_variant_target_text")
+                    # Fallback: tap node text langsung
+                    return self._make_result(node, "fast_variant_target_fallback")
+
+        # Tanpa target_variant: tap ImageView pertama yang clickable
+        for node in search_scope:
+            if node.get("class", "") == sel.VARIANT_ITEM_CLASS and node.get("clickable", "false") == "true":
+                return self._make_result(node, "fast_variant_first_clickable")
+
+        log.debug("find_variant_fast: tidak ada varian clickable ditemukan")
+        return None
+
+    # ------------------------------------------------------------------ #
     # Element resolvers
     # ------------------------------------------------------------------ #
 
