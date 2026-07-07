@@ -1,16 +1,18 @@
 """
 State: CHECK_VARIANT — cek stok di popup varian.
 
-EXECUTE mode:
-  1. Cek submit button text
-  2. Kalo "Beli Sekarang" → tap varian ImageView pertama → submit
-  3. Kalo "Habis" / selain itu → langsung close popup
-  4. Gak scan "Stok: N" — hemat 1 ADB dump + 1 full node scan
+Struktur popup Shopee untuk produk multi-varian:
+  sectionTierVariation
+    cartPanelTierVariation
+      buttonOption_selected / buttonOption_unselected → text varian
 
-MONITOR mode:
-  1. Scan "Stok: N" + threshold
-  2. Kalo memenuhi → alert Telegram
-  3. Kalo tidak → close loop
+EXECUTE:
+  1. Cari buttonOption (selected/unselected) yg text-nya cocok target
+  2. Tap kalo belum selected
+  3. Cek submit = "Beli Sekarang" → qty → tap submit → checkout
+
+MONITOR:
+  scan "Stok: N" + threshold + alert Telegram
 """
 from __future__ import annotations
 
@@ -29,16 +31,6 @@ from bot.actions import checkout_actions as cacts
 from bot.utils.logger import get_logger
 
 log = get_logger(__name__)
-
-# ── Module-level helpers ──────────────────────────────────────────────
-
-def _center(bounds_str: str) -> tuple[int, int]:
-    try:
-        parts = bounds_str.replace("][", ",").strip("[]").split(",")
-        x1, y1, x2, y2 = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-        return ((x1 + x2) // 2, (y1 + y2) // 2)
-    except Exception:
-        return (0, 0)
 
 
 class CheckVariantHandler:
@@ -73,7 +65,7 @@ class CheckVariantHandler:
         return await self._handle_execute(parser)
 
     # ═══════════════════════════════════════════════════════════════════ #
-    # MONITOR — full stock scan + threshold + alert Telegram
+    # MONITOR
     # ═══════════════════════════════════════════════════════════════════ #
 
     async def _handle_monitor(self, parser: VariantParser) -> WorkflowState:
@@ -88,57 +80,41 @@ class CheckVariantHandler:
         )
         if variant_info is None:
             await self._bus.emit(ev.StockEmptyEvent(
-                variant=self._product.variant, stock_count=max(all_stocks),
+                variant=self._product.variant,
+                stock_count=max(all_stocks),
                 threshold=self._product.minimum_stock,
             ))
             await vacts.close_variant_popup(self._adb, self._cache)
             return WorkflowState.BUY_VOUCHER
 
         await self._bus.emit(ev.VariantStockDetectedEvent(
-            product_name=self._product.name, variant=self._product.variant or variant_info.variant_text,
+            product_name=self._product.name,
+            variant=self._product.variant or variant_info.variant_text,
             stock_count=variant_info.stock_count,
         ))
         await vacts.close_variant_popup(self._adb, self._cache)
         return WorkflowState.BUY_VOUCHER
 
     # ═══════════════════════════════════════════════════════════════════ #
-    # EXECUTE — cepet: cek submit button dulu, baru tap varian
+    # EXECUTE — tap variant option, cek submit, checkout
     # ═══════════════════════════════════════════════════════════════════ #
 
     async def _handle_execute(self, parser: VariantParser) -> WorkflowState:
-        # ── Cek submit button text ────────────────────────────────────
-        # Kalo "Habis" atau bukan "Beli Sekarang", langsung close — hemat
-        submit_text = parser.get_submit_button_text()
+        nodes = self._cache.all_nodes()
 
-        if "Beli Sekarang" not in submit_text:
-            log.info("EXECUTE: submit = '%s' -> close loop", submit_text)
-            await vacts.close_variant_popup(self._adb, self._cache)
-            return WorkflowState.BUY_VOUCHER
+        # ── Cari & tap varian target ─────────────────────────────────
+        await self._tap_option_by_text(nodes)
 
-        # ── Cari & tap varian ImageView di sectionTierVariation ──────
-        # Dari XML dump: ImageView clickable di dalem container varian
-        root = self._cache.root()
-        if root is not None:
-            nodes = list(root.iter("node"))
-            container = _by_rid(nodes, "sectionTierVariation")
-            scope = list(container.iter("node")) if container is not None else nodes
-
-            # Cari ImageView clickable di container
-            for node in scope:
-                if node.get("class", "") == "android.widget.ImageView" and node.get("clickable", "false") == "true":
-                    cx, cy = _center(node.get("bounds", ""))
-                    if cx > 0:
-                        log.info("Tap varian ImageView (%d, %d)", cx, cy)
-                        tapped = await self._adb.tap(cx, cy)
-                        if tapped:
-                            await asyncio.sleep(0.5)
-                            break
-                        else:
-                            log.error("EXECUTE: gagal tap ImageView")
-
-        # ── Refresh abis tap ─────────────────────────────────────────
+        # ── Refresh cache setelah tap ────────────────────────────────
         await self._cache.get(self._adb, force=True)
         parser = VariantParser(self._cache)
+
+        # ── Cek submit text ──────────────────────────────────────────
+        submit_text = parser.get_submit_button_text()
+        if "Beli Sekarang" not in submit_text:
+            log.info("EXECUTE: submit = '%s' -> close", submit_text)
+            await vacts.close_variant_popup(self._adb, self._cache)
+            return WorkflowState.BUY_VOUCHER
 
         # ── Qty ──────────────────────────────────────────────────────
         if self._product.purchase_quantity > 1:
@@ -152,7 +128,7 @@ class CheckVariantHandler:
                 await vacts.close_variant_popup(self._adb, self._cache)
                 return WorkflowState.BUY_VOUCHER
 
-        # ── Submit ───────────────────────────────────────────────────
+        # ── Tap submit ───────────────────────────────────────────────
         submit_el = parser.get_submit_button()
         if submit_el is None:
             await vacts.close_variant_popup(self._adb, self._cache)
@@ -177,10 +153,69 @@ class CheckVariantHandler:
 
         return WorkflowState.CHECKOUT
 
+    # ═══════════════════════════════════════════════════════════════════ #
+    # Tap variant option by text match
+    # ═══════════════════════════════════════════════════════════════════ #
 
-def _by_rid(nodes, rid: str):
-    for n in nodes:
-        nrid = n.get("resource-id", "")
-        if nrid == rid or nrid.endswith("/" + rid) or nrid.endswith(":" + rid):
-            return n
-    return None
+    async def _tap_option_by_text(self, nodes) -> bool:
+        """
+        Cari node buttonOption_selected / buttonOption_unselected
+        yg text child-nya mengandung target_variant.
+
+        Resource ID: buttonOption_selected / buttonOption_unselected
+        Di dalamnya ada ImageView + TextView dgn text "Penthouse 50ml" dll.
+        """
+        target = self._product.variant
+        if not target:
+            log.info("EXECUTE: ga ada target varian, pake varian pertama")
+            return False
+
+        target_lower = target.lower()
+
+        for node in nodes:
+            rid = node.get("resource-id", "")
+            if "buttonOption" not in rid:
+                continue
+
+            # Cari text di node + child nodes
+            text = node.get("text", "") or node.get("content-desc", "")
+            if text:
+                full_text = text
+            else:
+                # Kumpulin text dari semua child node
+                parts = []
+                for child in node.iter("node"):
+                    t = child.get("text", "") or child.get("content-desc", "")
+                    if t:
+                        parts.append(t)
+                full_text = " ".join(parts)
+
+            if target_lower in full_text.lower():
+                # Skip kalo udah selected
+                if "selected" in rid:
+                    log.info("EXECUTE: varian '%s' udah dipilih", full_text)
+                    return True
+
+                # Tap yang unselected
+                bounds = node.get("bounds", "")
+                cx, cy = _center(bounds)
+                if cx > 0:
+                    log.info("Tap varian '%s' [%s] (%d, %d)", full_text, rid, cx, cy)
+                    tapped = await self._adb.tap(cx, cy)
+                    if tapped:
+                        await asyncio.sleep(0.5)
+                        return True
+                    log.error("EXECUTE: gagal tap option '%s'", full_text)
+                    return False
+
+        log.info("EXECUTE: varian '%s' gak ditemukan di option buttons", target)
+        return False
+
+
+def _center(bounds_str: str) -> tuple[int, int]:
+    try:
+        parts = bounds_str.replace("][", ",").strip("[]").split(",")
+        x1, y1, x2, y2 = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
+        return ((x1 + x2) // 2, (y1 + y2) // 2)
+    except Exception:
+        return (0, 0)
