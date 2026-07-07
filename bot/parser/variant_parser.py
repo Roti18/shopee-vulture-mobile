@@ -150,17 +150,7 @@ class VariantParser(BaseParser):
         """
         nodes = self._cache.all_nodes()
         root = self._cache.root()
-
-        # Cari container varian
-        container = self._by_resource_id(
-            list(root.iter("node")) if root is not None else nodes,
-            sel.VARIANT_CONTAINER.resource_id,
-        )
-        if container is None:
-            log.debug("find_variant_fast: container varian tidak ditemukan")
-            return None
-
-        search_scope = list(container.iter("node"))
+        search_scope = list(root.iter("node")) if root is not None else nodes
 
         if target_variant:
             # Cari node text yang mengandung nama varian target
@@ -168,7 +158,7 @@ class VariantParser(BaseParser):
                 text = node.get("text", "") or node.get("content-desc", "")
                 if target_variant.lower() in text.lower():
                     node_bounds = self._parse_bounds_tuple(node.get("bounds", ""))
-                    # Cari tappable element terdekat
+                    # Cari tappable ImageView terdekat
                     for n2 in search_scope:
                         if n2.get("class", "") == sel.VARIANT_ITEM_CLASS and n2.get("clickable", "false") == "true":
                             n2_bounds = self._parse_bounds_tuple(n2.get("bounds", ""))
@@ -177,8 +167,10 @@ class VariantParser(BaseParser):
                     # Fallback: tap node text langsung
                     return self._make_result(node, "fast_variant_target_fallback")
 
-        # Tanpa target_variant: tap ImageView pertama yang clickable
-        for node in search_scope:
+        # Tanpa target_variant: tap ImageView pertama yang clickable di container
+        container = self._by_resource_id(search_scope, sel.VARIANT_CONTAINER.resource_id)
+        container_scope = list(container.iter("node")) if container is not None else search_scope
+        for node in container_scope:
             if node.get("class", "") == sel.VARIANT_ITEM_CLASS and node.get("clickable", "false") == "true":
                 return self._make_result(node, "fast_variant_first_clickable")
 

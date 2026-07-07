@@ -53,8 +53,10 @@ class CheckVariantHandler:
         self._runtime = runtime
 
     async def execute(self) -> WorkflowState:
-        # ── 1. Refresh dump ─────────────────────────────────────────────
-        await self._cache.get(self._adb, force=True)
+        # ── 1. Dump fresh ───────────────────────────────────────────────
+        # Pake TTL cache — kalo popup baru muncul < 1.5s lalu, skip dump ulang.
+        # force=True cuma bikin ilang 2-3 detik percuma.
+        await self._cache.get(self._adb, force=False)
 
         parser = VariantParser(self._cache)
 
