@@ -18,9 +18,16 @@ class WorkflowState(Enum):
     """
     State machine flow (CHECK_STOCK dihapus — stok hanya valid dari popup varian):
 
-    IDLE → OPEN_PRODUCT → BUY_VOUCHER → CHECK_VARIANT → BUY_NOW
-         → CHECKOUT → VERIFY_PAYMENT → CREATE_ORDER
-         → COOLDOWN | OPEN_PRODUCT
+    MONITOR mode:
+      IDLE → OPEN_PRODUCT → BUY_VOUCHER → CHECK_VARIANT
+          stok >= threshold → alert Telegram → close popup → loop
+          stok < threshold → close popup → loop
+
+    EXECUTE mode:
+      IDLE → OPEN_PRODUCT → BUY_VOUCHER → CHECK_VARIANT → CHECKOUT
+          → CREATE_ORDER → (COOLDOWN | OPEN_PRODUCT)
+          stok >= threshold → checkout silent → screenshot → kirim bukti
+
     Any failure → RECOVERY → OPEN_PRODUCT
     """
     IDLE = "idle"
