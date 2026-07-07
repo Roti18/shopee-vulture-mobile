@@ -279,9 +279,12 @@ class CommandHandlers:
 
     async def cmd_setvariant(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
         if not ctx.args:
+            self._product.variant = ""
+            await self._set_config("product.variant", "")
             await update.message.reply_text(
-                "❌ <b>Gunakan format:</b>\n/setvariant &lt;nama_varian&gt;\n\n"
-                "Contoh:\n/setvariant matcha latte 50ml",
+                "✅ <b>Varian dihapus</b> — bot akan pilih varian pertama yang tersedia.\n\n"
+                "Kalau mau set varian spesifik:\n/setvariant &lt;nama&gt;\n"
+                "Contoh: /setvariant matcha latte 50ml",
                 parse_mode="HTML",
             )
             return
