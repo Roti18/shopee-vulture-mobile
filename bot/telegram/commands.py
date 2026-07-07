@@ -90,6 +90,10 @@ class CommandHandlers:
                 parse_mode="HTML",
             )
             return
+
+        # Pastikan layar HP hidup
+        await self._adb.ensure_screen_on()
+
         self._runtime.mode = BotMode.RUNNING
         self._runtime.workflow_state = WorkflowState.OPEN_PRODUCT
         self._runtime.metrics.last_state_change = datetime.now()
@@ -151,6 +155,10 @@ class CommandHandlers:
                 parse_mode="HTML",
             )
             return
+
+        # Pastikan layar HP hidup
+        if self._adb is not None:
+            await self._adb.ensure_screen_on()
 
         self._runtime.mode = BotMode.MONITOR
         self._runtime.workflow_state = WorkflowState.OPEN_PRODUCT
