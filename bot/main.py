@@ -51,6 +51,56 @@ from bot.workflow.cooldown import CooldownHandler
 log = get_logger(__name__)
 
 
+# ── Telegram Polling Guard ──────────────────────────────────────────────
+async def _telegram_polling_guard(tg_app) -> None:
+    """
+    Guard task: monitor koneksi polling Telegram dan restart otomatis.
+
+    Kalo koneksi putus (VPN mati/hidup, proxy timeout, DNS error, dll),
+    python-telegram-bot internal retry-nya 3x doang, abis itu polling
+    berhenti total. Guard ini deteksi itu dan restart polling.
+    """
+    RECONNECT_DELAYS = [5, 15, 30, 60, 60]
+
+    while True:
+        try:
+            await asyncio.sleep(15)
+
+            if tg_app.updater.running:
+                continue
+
+            log.warning("Telegram polling berhenti — reconnect otomatis...")
+
+            # Bersihin state updater sebelum restart
+            try:
+                await tg_app.updater.stop()
+            except Exception:
+                pass
+
+            for attempt in range(5):
+                try:
+                    await asyncio.wait_for(
+                        tg_app.updater.start_polling(drop_pending_updates=True),
+                        timeout=20,
+                    )
+                    log.info("Telegram polling restored (attempt %d)", attempt + 1)
+                    break
+                except Exception as exc:
+                    delay = RECONNECT_DELAYS[min(attempt, len(RECONNECT_DELAYS) - 1)]
+                    log.warning(
+                        "TG reconnect attempt %d/5 gagal: %s — retry %ds",
+                        attempt + 1, exc, delay,
+                    )
+                    await asyncio.sleep(delay)
+            else:
+                log.error("Telegram polling gagal total setelah 5x reconnect")
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            log.error("TelegramPollingGuard error: %s", exc)
+            await asyncio.sleep(30)
+
+
 async def main() -> None:
     log.info("=" * 60)
     log.info("Shopee ADB Automation Bot — starting")
@@ -268,6 +318,9 @@ async def main() -> None:
     # ── Jalankan state machine & schedulers ────────────────────────────────
     try:
         if tg_ready:
+            tg_polling_guard_task = asyncio.create_task(
+                _telegram_polling_guard(tg_app)
+            )
             await asyncio.gather(
                 sm.run(),
                 watchdog.start(),
@@ -302,6 +355,11 @@ async def main() -> None:
 
             # Stop Telegram (kalo sempet init)
             if tg_ready:
+                tg_polling_guard_task.cancel()
+                try:
+                    await asyncio.wait_for(tg_polling_guard_task, timeout=3)
+                except (asyncio.CancelledError, asyncio.TimeoutError):
+                    pass
                 await tg_app.updater.stop()
                 await tg_app.stop()
                 await tg_app.shutdown()
