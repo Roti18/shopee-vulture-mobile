@@ -7,9 +7,9 @@ An Android ADB automation bot for monitoring and purchasing products on Shopee. 
 ## Features
 
 ### Core
-- **Auto monitoring** — Opens product URL, checks stock via variant popup, loops at configurable interval
-- **Auto checkout** — When stock meets threshold, selects variant, sets quantity, taps "Buat Pesanan", verifies order
-- **Monitor Mode** — Check stock only, send Telegram notification when available, never checkout
+- **2 Operation Modes**:
+  - 🚀 **EXECUTE mode** — Opens product, checks stock, auto-checkout, sends screenshot proof to Telegram. No stock notifications — you only get the result.
+  - 📡 **MONITOR mode** — Checks stock periodically, sends Telegram notification when stock is detected. Does NOT checkout — you decide when to buy.
 - **Telegram Remote Control** — Full command set via Telegram bot
 
 ### Reliability
@@ -82,8 +82,8 @@ python -m bot.main
 ```
 
 Then via Telegram:
-- `/start` — Begin monitoring + auto checkout
-- `/monitor` — Monitor mode (notify only, no checkout)
+- `/start` — **EXECUTE mode**: monitor stock + auto checkout + send screenshot
+- `/monitor` — **MONITOR mode**: notify only, no checkout
 - `/status` — Show bot status
 - `/stop` — Stop bot
 
@@ -109,12 +109,13 @@ Jalankan sekali setelah `git pull` atau pertama kali deploy.
 
 | Command | Description |
 |---------|-------------|
+| **Mode** | |
+| `/start` | 🚀 EXECUTE mode: monitor stock + auto checkout + send proof |
+| `/monitor` | 📡 Toggle MONITOR mode: notify stock only, no checkout |
 | **Control** | |
-| `/start` | Start bot (monitoring + auto checkout) |
 | `/stop` | Stop bot |
 | `/pause` | Pause temporarily |
 | `/resume` | Resume from pause |
-| `/monitor` | Toggle monitor mode (notify only, no checkout) |
 | `/status` | Show full bot status |
 | `/help` | Show command list |
 | **Product** | |
@@ -210,26 +211,28 @@ bot/
 
 ---
 
-## State Machine Flow
+## Modes
 
+### 📡 MONITOR Mode (`/monitor`)
 ```
-IDLE/STOPPED → OPEN_PRODUCT (open URL + poll voucher button)
-    → CHECK_VARIANT (parse stock from variant popup)
-        ├── Stok >= threshold → emit alert → tap variant → tap submit → CHECKOUT
-        │   └── (MONITOR mode → close popup → loop)
-        ├── Stok < threshold → close popup → loop
-        └── Popup not detected → RECOVERY
-    → CHECKOUT (verify checkout page, tap "Buat Pesanan", verify payment page)
-    → VERIFY_PAYMENT (wait for order result)
-    → CREATE_ORDER (screenshot, Telegram notification)
-        ├── sleep_after_success on → PAUSED
-        ├── restock limit reached → COOLDOWN
-        └── else → OPEN_PRODUCT (continue monitoring)
+OPEN_PRODUCT → BUY_VOUCHER → CHECK_VARIANT
+    ├── Stok >= threshold → 🟢 Telegram alert → close popup → loop
+    ├── Stok < threshold → close popup → loop
+    └── RECOVERY on failure
 ```
 
-Any failure in any state redirects to:
+### 🚀 EXECUTE Mode (`/start`)
 ```
-→ RECOVERY (5-tier: soft retry → ADB reconnect → force-stop → restart ADB server → panic)
+OPEN_PRODUCT → BUY_VOUCHER → CHECK_VARIANT
+    ├── Stok >= threshold → tap variant → tap submit → CHECKOUT → CREATE_ORDER
+    │   → ✅ Screenshot + Telegram → loop
+    ├── Stok < threshold → close popup → loop
+    └── RECOVERY on failure
+```
+
+### Recovery Flow (both modes)
+```
+Any failure → RECOVERY (5-tier: soft retry → ADB reconnect → force-stop → restart ADB → panic)
     → OPEN_PRODUCT (resume)
 ```
 
