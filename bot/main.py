@@ -230,10 +230,11 @@ async def main() -> None:
             "tapi /start bakal ditolak sampai device nyambung."
         )
 
-    # Bot selalu mulai dalam mode IDLE — user harus kirim /start via Telegram
+    # Auto-start ke MONITOR mode — bot langsung jalan tanpa nunggu /start
+    # Kalo ADB blom nyambung, state machine nunggu otomatis di loop utama
     runtime = BotRuntimeState(
-        mode=BotMode.IDLE,
-        workflow_state=WorkflowState.IDLE,
+        mode=BotMode.MONITOR,
+        workflow_state=WorkflowState.OPEN_PRODUCT,
     )
     # Restore dari persistent DB
     runtime.stats.purchase_count_session = saved.purchase_count_session
