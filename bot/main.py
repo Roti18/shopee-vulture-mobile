@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import signal
+import time
 
 from bot.adb.client import ADBClient
 from bot.adb.xml_cache import XMLCache
@@ -33,6 +34,8 @@ from bot.scheduler.heartbeat import Heartbeat
 from bot.scheduler.loop_scheduler import LoopScheduler
 from bot.scheduler.watchdog import Watchdog
 from bot.storage.repositories import RuntimeSnapshot
+from telegram.error import TelegramError
+
 from bot.telegram.bot import build_application
 from bot.telegram.commands import CommandHandlers
 from bot.telegram.notifier import TelegramNotifier
@@ -52,53 +55,129 @@ log = get_logger(__name__)
 
 
 # ── Telegram Polling Guard ──────────────────────────────────────────────
-async def _telegram_polling_guard(tg_app) -> None:
+class _PollingGuard:
     """
     Guard task: monitor koneksi polling Telegram dan restart otomatis.
 
-    Kalo koneksi putus (VPN mati/hidup, proxy timeout, DNS error, dll),
-    python-telegram-bot internal retry-nya 3x doang, abis itu polling
-    berhenti total. Guard ini deteksi itu dan restart polling.
+    Masalah: kalo Tailscale/VPN reconnect, httpx connection pool jadi stale.
+    internal retry python-telegram-bot pake backoff sampe 30s, dan `updater.running`
+    tetap True walaupun get_updates terus gagal — jadi guard versi lama gak pernah trigger.
+
+    Solusi:
+      - error_callback ngumpulin error counter. Kalo dah > N error berturut-turut,
+        guard langsung restart polling total (fresh connection pool).
+      - restart polling pake bootstrap_retries=-1 (retry indefinite).
+      - Setiap restart, shutdown total + ganti koneksi biar stale connections di-reset.
     """
-    RECONNECT_DELAYS = [5, 15, 30, 60, 60]
 
-    while True:
+    def __init__(self, tg_app) -> None:
+        self._app = tg_app
+        self._error_count = 0
+        self._last_error_at = 0.0
+        self._restarting = False
+
+    # Dipanggil dari error_callback start_polling — inline, sync, jangan block.
+    def on_polling_error(self, _exc: TelegramError) -> None:
+        self._error_count += 1
+        self._last_error_at = time.monotonic()
+
+    def _reset_error_count(self) -> None:
+        self._error_count = 0
+
+    async def _restart_polling(self) -> bool:
+        """Shutdown → re-init → start_polling. Return True kalo berhasil."""
+        RECONNECT_DELAYS = [2, 5, 10, 20, 30, 30, 30]
+        self._restarting = True
+
+        # 1) Shutdown total — bersihin stale connections
         try:
-            await asyncio.sleep(15)
+            await self._app.updater.stop()
+        except Exception:
+            pass
+        try:
+            await self._app.stop()
+        except Exception:
+            pass
+        try:
+            await self._app.shutdown()
+        except Exception:
+            pass
 
-            if tg_app.updater.running:
-                continue
+        await asyncio.sleep(1)
 
-            log.warning("Telegram polling berhenti — reconnect otomatis...")
-
-            # Bersihin state updater sebelum restart
+        # 2) Re-init
+        for attempt in range(7):
             try:
-                await tg_app.updater.stop()
-            except Exception:
-                pass
+                await asyncio.wait_for(self._app.initialize(), timeout=10)
+                await asyncio.wait_for(self._app.start(), timeout=10)
+                await asyncio.wait_for(
+                    self._app.updater.start_polling(
+                        drop_pending_updates=True,
+                        bootstrap_retries=-1,
+                        error_callback=self.on_polling_error,
+                    ),
+                    timeout=20,
+                )
+                log.info("Telegram polling restored (attempt %d/7)", attempt + 1)
+                self._restarting = False
+                return True
+            except Exception as exc:
+                delay = RECONNECT_DELAYS[min(attempt, len(RECONNECT_DELAYS) - 1)]
+                log.warning(
+                    "TG reconnect %d/7 gagal: %s — retry %ds",
+                    attempt + 1, exc, delay,
+                )
+                await asyncio.sleep(delay)
 
-            for attempt in range(5):
-                try:
-                    await asyncio.wait_for(
-                        tg_app.updater.start_polling(drop_pending_updates=True),
-                        timeout=20,
-                    )
-                    log.info("Telegram polling restored (attempt %d)", attempt + 1)
-                    break
-                except Exception as exc:
-                    delay = RECONNECT_DELAYS[min(attempt, len(RECONNECT_DELAYS) - 1)]
+        log.error("Telegram polling gagal total setelah 7x reconnect — bot jalan tanpa Telegram")
+        self._restarting = False
+        return False
+
+    async def run(self) -> None:
+        log.info("PollingGuard: mulai monitoring error polling")
+
+        while True:
+            try:
+                await asyncio.sleep(10)
+                now = time.monotonic()
+
+                # Kasus 1: polling beneran berhenti (updater.running = False) → restart
+                if not self._app.updater.running and not self._restarting:
+                    log.warning("PollingGuard: updater berhenti — restart...")
+                    ok = await self._restart_polling()
+                    self._reset_error_count()
+                    self._restarting = False
+                    if not ok:
+                        await asyncio.sleep(60)
+                    continue
+
+                # Kasus 2: error bertumpuk (Tailscale reconnect dll) → restart walau running masih True
+                # Threshold: >=5 error dalam 60 detik terakhir = pool stale
+                if (
+                    self._error_count >= 5
+                    and not self._restarting
+                    and now - self._last_error_at < 60
+                ):
                     log.warning(
-                        "TG reconnect attempt %d/5 gagal: %s — retry %ds",
-                        attempt + 1, exc, delay,
+                        "PollingGuard: %d error berturut-turut (pool mungkin stale) — restart...",
+                        self._error_count,
                     )
-                    await asyncio.sleep(delay)
-            else:
-                log.error("Telegram polling gagal total setelah 5x reconnect")
-        except asyncio.CancelledError:
-            break
-        except Exception as exc:
-            log.error("TelegramPollingGuard error: %s", exc)
-            await asyncio.sleep(30)
+                    ok = await self._restart_polling()
+                    self._reset_error_count()
+                    self._restarting = False
+                    if not ok:
+                        await asyncio.sleep(60)
+                    continue
+
+                # Reset error count kalo udah >60d dari error terakhir (polling sehat)
+                if self._error_count > 0 and now - self._last_error_at > 60:
+                    self._error_count = 0
+
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                log.error("PollingGuard error: %s", exc)
+                await asyncio.sleep(15)
 
 
 async def main() -> None:
@@ -291,13 +370,20 @@ async def main() -> None:
     # ── Inisialisasi Telegram dengan retry ──────────────────────────────────
     # Biar gak mati total kalo Telegram API unreachable (timeout/proxy/DNS).
     tg_ready = False
+    tg_polling_guard = None
     for attempt in range(1, 4):
         try:
             await asyncio.wait_for(tg_app.initialize(), timeout=10)
             await asyncio.wait_for(tg_app.start(), timeout=10)
+            # Buat guard dulu biar error_callback-nya ready
+            tg_polling_guard = _PollingGuard(tg_app)
             await asyncio.wait_for(
-                tg_app.updater.start_polling(drop_pending_updates=True),
-                timeout=15,
+                tg_app.updater.start_polling(
+                    drop_pending_updates=True,
+                    bootstrap_retries=-1,
+                    error_callback=tg_polling_guard.on_polling_error,
+                ),
+                timeout=20,
             )
             tg_ready = True
             log.info("Telegram bot siap (percobaan ke-%d)", attempt)
@@ -318,9 +404,7 @@ async def main() -> None:
     # ── Jalankan state machine & schedulers ────────────────────────────────
     try:
         if tg_ready:
-            tg_polling_guard_task = asyncio.create_task(
-                _telegram_polling_guard(tg_app)
-            )
+            tg_polling_guard_task = asyncio.create_task(tg_polling_guard.run())
             await asyncio.gather(
                 sm.run(),
                 watchdog.start(),
