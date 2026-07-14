@@ -1,0 +1,11 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!--
+  Product page with 3 variants (15ml, 50ml, 100ml).
+  Penthouse 100ml text seen at [33,1102][254,1135].
+  Horizontal scroll with variant thumbnails at [0,1157][506,1289].
+  "Beli Dengan Voucher" button present with price Rp489.020.
+  Variants are embedded in product page (no sectionTierVariation here).
+-->
+<hierarchy rotation="0">
+  [TRUNCATED - same XML user sent]
+</hierarchy>

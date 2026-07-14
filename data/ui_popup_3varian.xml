@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node bounds="[0,0][1080,2265]" class="android.widget.FrameLayout" package="com.shopee.id">
+    <!-- ... full XML from user ... -->
+  </node>
+</hierarchy>

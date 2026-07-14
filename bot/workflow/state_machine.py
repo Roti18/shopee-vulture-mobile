@@ -70,6 +70,14 @@ class StateMachine:
 
             # ── Pastikan device nyantol sebelum state transition pertama ──
             if not await self._adb.is_connected():
+                # Coba reconnect dulu — terutama penting buat WiFi ADB via Tailscale
+                # yang bisa putus kapan aja (route flapping, idle timeout, dll)
+                if self._adb.wifi_host:
+                    log.warning("StateMachine: ADB device lost, coba reconnect ke %s...", self._adb.wifi_host)
+                    ok = await self._adb.connect_wifi()
+                    if ok:
+                        log.info("StateMachine: ADB reconnect sukses")
+                        continue
                 log.warning("StateMachine: ADB device belum terhubung, tunggu 3s...")
                 await asyncio.sleep(3)
                 continue
