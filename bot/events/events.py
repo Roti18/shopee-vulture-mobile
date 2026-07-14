@@ -36,15 +36,21 @@ class BotResumedEvent:
 class VariantStockDetectedEvent:
     """
     Dikirim saat parser berhasil membaca stok > 0 dari popup varian.
-    Ini adalah event yang memicu Telegram alert SEBELUM checkout dimulai.
 
-    Flow:
+    Flow MONITOR:
       Popup open → Read "Stok: N" → N meets threshold
-      → emit VariantStockDetectedEvent → Telegram → Select → Buy
+      → emit → Telegram alert → lanjut monitoring
+      is_checkout=False → pesan: "Stok terdeteksi, melanjutkan monitoring..."
+
+    Flow EXECUTE:
+      Popup open → Read "Stok: N" → N meets threshold
+      → emit → Telegram alert → checkout
+      is_checkout=True → pesan: "⚡ Bot akan mulai proses checkout..."
     """
     product_name: str
     variant: str
     stock_count: int
+    is_checkout: bool = True
     timestamp: datetime = field(default_factory=datetime.now)
 
 @dataclass

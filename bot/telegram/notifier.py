@@ -87,15 +87,27 @@ class TelegramNotifier:
 
     async def _on_variant_stock_detected(self, event: ev.VariantStockDetectedEvent) -> None:
         """
-        🟢 Restock Detected — dikirim SEBELUM proses checkout dimulai.
+        🟢 Restock Detected — ada stok.
+        Kalo is_checkout=False (MONITOR mode), langsung lanjut monitoring
+        tanpa ngomong "mulai proses checkout".
         """
-        await self.send(
-            "🟢 <b>Restock Detected</b>\n\n"
-            f"Product : {event.product_name}\n"
-            f"Variant : {event.variant}\n"
-            f"Stock   : {event.stock_count}\n\n"
-            "⚡ Bot akan mulai proses checkout..."
-        )
+        if event.is_checkout:
+            msg = (
+                "🟢 <b>Restock Detected</b>\n\n"
+                f"Product : {event.product_name}\n"
+                f"Variant : {event.variant}\n"
+                f"Stock   : {event.stock_count}\n\n"
+                "⚡ Bot akan mulai proses checkout..."
+            )
+        else:
+            msg = (
+                "🟢 <b>Stok Terpantau</b>\n\n"
+                f"Product : {event.product_name}\n"
+                f"Variant : {event.variant}\n"
+                f"Stock   : {event.stock_count}\n\n"
+                "📡 Mode MONITOR — stok masih dipantau..."
+            )
+        await self.send(msg)
 
     async def _on_order_success(self, event: ev.OrderSuccessEvent) -> None:
         """

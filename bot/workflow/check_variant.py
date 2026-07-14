@@ -91,6 +91,7 @@ class CheckVariantHandler:
             product_name=self._product.name,
             variant=self._product.variant or variant_info.variant_text,
             stock_count=variant_info.stock_count,
+            is_checkout=False,
         ))
         await vacts.close_variant_popup(self._adb, self._cache)
         return WorkflowState.BUY_VOUCHER
