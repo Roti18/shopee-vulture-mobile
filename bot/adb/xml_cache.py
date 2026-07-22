@@ -56,6 +56,13 @@ class XMLCache:
             self._backoff = 0.0                     # reset backoff
             log.debug("XMLCache: dump sukses (%.0f ms)", self._last_dump_duration_ms)
         else:
+            if force:
+                # Force dump setelah tap — wajar kadang gagal (UI transisi).
+                # Jangan nuke cache, jangan grow backoff. Caller tau return None.
+                log.debug("XMLCache: force dump gagal (UI transisi) — return None")
+                return None
+
+            # Non-force failure: grow adaptive backoff tapi tetap balikin stale tree
             self._backoff = min(
                 (self._backoff + 0.5) * 2 if self._backoff > 0 else 0.5,
                 self.max_backoff,
@@ -63,18 +70,10 @@ class XMLCache:
             log.warning(
                 "XMLCache: dump gagal, backoff → %.1fs", self._backoff
             )
-            # Kalo force=True, caller butuh data fresh — jangan balikin stale tree
-            # (biar recovery gak salah deteksi screen berdasarkan XML lama)
-            if force:
-                log.warning("XMLCache: force=True tapi dump gagal — return None")
-                self._tree = None
-                self._cached_at = 0.0
-            elif self._tree is not None:
-                # Kalo polling biasa, pake cached tree aja (resilient terhadap lag sesaat)
-                log.debug("XMLCache: pake cached tree yang lama")
+            if self._tree is not None:
+                log.debug("XMLCache: pake cached tree yang lama (resilient fallback)")
                 return self._tree
-            else:
-                self._tree = None
+            self._tree = None
             self._cached_at = 0.0
 
         return self._tree
