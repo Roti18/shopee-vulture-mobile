@@ -165,45 +165,24 @@ class ADBClient:
     # Screen
     # ------------------------------------------------------------------ #
 
-    async def is_screen_awake(self) -> bool:
-        """Cek apakah layar HP hidup (awake)."""
-        rc, out, _ = await self._run(["shell", "dumpsys", "power"])
-        if rc != 0:
-            return True  # default ke True kalo gagal biar gak salah bangunin
-        for line in out.splitlines():
-            if "mWakefulness=" in line:
-                return "Awake" in line or "Dozing" not in line
-        return True
-
     async def ensure_screen_on(self) -> None:
-        """Pastikan layar HP hidup. Kalo mati/sleep, bangunin."""
-        if await self.is_screen_awake():
-            log.debug("Screen sudah awake")
-            return
-        log.info("Screen mati/sleep — bangunin...")
-        await self.unlock_screen()
+        """
+        Bangunin layar HP kalo lagi mati/sleep.
 
-        # Verifikasi — kalo masih mati, cobain lagi setelah jeda
-        await asyncio.sleep(1)
-        if not await self.is_screen_awake():
-            log.info("Screen masih mati — coba lagi...")
-            await self.screen_on()
-            await asyncio.sleep(0.5)
-            await self.swipe(540, 2000, 540, 400, 500)
+        KEYCODE_WAKEUP (224) = bangunin DOANG tanpa toggle (beda sama POWER 26 yg toggle).
+        Ini AMAN dipanggil tiap siklus — kalo layar udah nyala, WAKEUP gak ngapa-ngapain.
+        """
+        log.info("Screen wake: kirim WAKEUP + swipe unlock")
+        await self.key(224)     # KEYCODE_WAKEUP — bangunin layar (gak toggle)
+        await asyncio.sleep(0.5)
+        # Swipe dari bawah ke atas biar unlock kalo ada lockscreen
+        await self.swipe(540, 2000, 540, 300, 600)
 
     async def screen_on(self) -> None:
-        """Bangunkan layar via POWER button. KEYCODE_POWER (26) lebih reliable daripada MENU (82)."""
-        await self.key(26)      # KEYCODE_POWER — wake up
+        await self.key(26)      # KEYCODE_POWER
 
     async def screen_off(self) -> None:
         await self.key(26)      # KEYCODE_POWER
-
-    async def unlock_screen(self) -> None:
-        """Bangunin layar + swipe up buat unlock."""
-        await self.screen_on()
-        await asyncio.sleep(0.8)      # tunggu display beneran nyala
-        # Swipe dari bawah ke atas — lebih panjang (2000→300) biar pasti kena
-        await self.swipe(540, 2000, 540, 300, 600)
 
     # ------------------------------------------------------------------ #
     # App
