@@ -28,7 +28,7 @@ class BuyVoucherHandler:
             self._adb, self._cache, max_wait=8.0
         )
         if not appeared:
-            log.warning("BUY_VOUCHER: popup varian tidak muncul")
-            return WorkflowState.RECOVERY
+            log.warning("BUY_VOUCHER: popup varian tidak muncul — redirect URL")
+            return WorkflowState.OPEN_PRODUCT
 
         return WorkflowState.CHECK_VARIANT
