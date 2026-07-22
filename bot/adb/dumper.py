@@ -28,7 +28,7 @@ async def dump_xml(adb: "ADBClient") -> ET.ElementTree | None:
 
     t0 = time.monotonic()
 
-    # Dump di device
+    # Dump di device — shell command, pake PIPE aman
     rc, out, err = await adb._run(
         ["shell", "uiautomator", "dump", DEVICE_DUMP_PATH], timeout=15
     )
@@ -36,8 +36,10 @@ async def dump_xml(adb: "ADBClient") -> ET.ElementTree | None:
         log.error("uiautomator dump gagal: %s", err)
         return None
 
-    # Pull ke lokal — ADB sync protocol lebih efisien dari cat via stdout
-    rc, _, err = await adb._run(["pull", DEVICE_DUMP_PATH, str(LOCAL_DUMP_PATH)])
+    # Pull ke lokal — pake DEVNULL biar gak hang.
+    # adb pull fork child process buat transfer binary, inherit pipe FD
+    # bikin proc.communicate() gak pernah EOF.
+    rc, _, err = await adb._run(["pull", DEVICE_DUMP_PATH, str(LOCAL_DUMP_PATH)], capture_output=False)
     if rc != 0:
         log.error("adb pull xml dump gagal: %s", err)
         return None
