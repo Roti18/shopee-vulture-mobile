@@ -71,6 +71,8 @@ class CheckVariantHandler:
     async def _handle_monitor(self, parser: VariantParser) -> WorkflowState:
         all_stocks = parser.get_all_stock_counts()
         if not all_stocks:
+            # Popup gak ada stock info — mungkin salah screen, reopen aja
+            await vacts.close_variant_popup(self._adb, self._cache)
             return WorkflowState.BUY_VOUCHER
 
         variant_info = parser.find_variant_with_stock(
@@ -84,8 +86,8 @@ class CheckVariantHandler:
                 stock_count=max(all_stocks),
                 threshold=self._product.minimum_stock,
             ))
-            await vacts.close_variant_popup(self._adb, self._cache)
-            return WorkflowState.BUY_VOUCHER
+            # Popup masih terbuka — tinggal tunggu interval, gak perlu close + reopen.
+            return WorkflowState.MONITOR_POPUP
 
         await self._bus.emit(ev.VariantStockDetectedEvent(
             product_name=self._product.name,
@@ -93,8 +95,8 @@ class CheckVariantHandler:
             stock_count=variant_info.stock_count,
             is_checkout=False,
         ))
-        await vacts.close_variant_popup(self._adb, self._cache)
-        return WorkflowState.BUY_VOUCHER
+        # Stock terdeteksi, popup gak usah ditutup — nanti di-scan ulang.
+        return WorkflowState.MONITOR_POPUP
 
     # ═══════════════════════════════════════════════════════════════════ #
     # EXECUTE — tap variant option, cek submit, checkout
@@ -204,7 +206,7 @@ class CheckVariantHandler:
                     log.info("Tap varian '%s' [%s] (%d, %d)", full_text, rid, cx, cy)
                     tapped = await self._adb.tap(cx, cy)
                     if tapped:
-                        await asyncio.sleep(0.5)
+                        await asyncio.sleep(0.2)
                         return True
                     log.error("EXECUTE: gagal tap option '%s'", full_text)
                     return False
