@@ -29,29 +29,46 @@ class ADBClient:
             return ["adb", "-s", self.device_serial]
         return ["adb"]
 
-    async def _run(self, args: list[str], timeout: int = 30) -> tuple[int, str, str]:
+    async def _run(
+        self, args: list[str], timeout: int = 30, capture_output: bool = True
+    ) -> tuple[int, str, str]:
         """
         Jalankan perintah adb secara async.
         Returns (returncode, stdout, stderr).
         Mengukur latency untuk WatchdogMetrics.
+
+        capture_output:
+          True  → pipe stdout/stderr (untuk command yg outputnya perlu dianalisis,
+                   seperti get-state, shell, dll).
+          False → redirect ke DEVNULL, cuma returncode aja (connect, disconnect, kill-server).
+                   Mencegah hang karena ADB fork child process yg inherit pipe FD,
+                   bikin proc.communicate() gak pernah dapet EOF.
         """
         cmd = self._base_cmd() + args
         t0 = time.monotonic()
         try:
-            proc = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            stdout, stderr = await asyncio.wait_for(
-                proc.communicate(), timeout=timeout
-            )
+            if capture_output:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                stdout, stderr = await asyncio.wait_for(
+                    proc.communicate(), timeout=timeout
+                )
+                out_text = stdout.decode("utf-8", errors="replace").strip()
+                err_text = stderr.decode("utf-8", errors="replace").strip()
+            else:
+                proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await asyncio.wait_for(proc.wait(), timeout=timeout)
+                out_text = ""
+                err_text = ""
             self._last_latency_ms = (time.monotonic() - t0) * 1000
-            return (
-                proc.returncode or 0,
-                stdout.decode("utf-8", errors="replace").strip(),
-                stderr.decode("utf-8", errors="replace").strip(),
-            )
+            return (proc.returncode or 0, out_text, err_text)
         except asyncio.TimeoutError:
             log.error("ADB command timed out: %s", " ".join(cmd))
             try:
@@ -76,16 +93,27 @@ class ADBClient:
     async def connect_wifi(self) -> bool:
         if not self.wifi_host:
             return False
-        rc, out, _ = await self._run(["connect", self.wifi_host])
-        return rc == 0 and "connected" in out.lower()
+        # Disconnect dulu — bersihin state stale ADB server biar koneksi baru bersih.
+        # ADB server nyimpen per-connection state; kalo langsung connect tanpa
+        # disconnect, negosiasi bisa hang/gagal.
+        await self._run(["disconnect"], capture_output=False)
+        await asyncio.sleep(0.5)
+        # Connect — pake DEVNULL biar gak hang. ADB `connect` fork child process
+        # yg inherit pipe FD, bikin proc.communicate() gak pernah dapet EOF.
+        rc, _, _ = await self._run(["connect", self.wifi_host], capture_output=False)
+        if rc != 0:
+            return False
+        await asyncio.sleep(1)
+        # Verifikasi via get-state (butuh output — pake capture_output=True normal)
+        return await self.is_connected()
 
     async def disconnect(self) -> None:
-        await self._run(["disconnect"])
+        await self._run(["disconnect"], capture_output=False)
 
     async def reconnect(self) -> bool:
         """Coba reconnect: disconnect → connect lagi (USB atau Wi-Fi)."""
         log.info("ADB reconnect: mulai...")
-        await self._run(["disconnect"])
+        await self._run(["disconnect"], capture_output=False)
         await asyncio.sleep(1)
         if self.wifi_host:
             ok = await self.connect_wifi()
@@ -97,11 +125,11 @@ class ADBClient:
         return ok
 
     async def kill_server(self) -> None:
-        await asyncio.create_subprocess_exec("adb", "kill-server")
+        await self._run(["kill-server"], capture_output=False)
         await asyncio.sleep(2)
 
     async def start_server(self) -> None:
-        await asyncio.create_subprocess_exec("adb", "start-server")
+        await self._run(["start-server"], capture_output=False)
         await asyncio.sleep(2)
 
     # ------------------------------------------------------------------ #
