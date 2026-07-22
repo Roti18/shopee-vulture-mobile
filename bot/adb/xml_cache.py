@@ -18,7 +18,7 @@ log = get_logger(__name__)
 
 @dataclass
 class XMLCache:
-    ttl_seconds: float = 1.5                     # cache valid selama N detik
+    ttl_seconds: float = 0.8                     # cache valid selama N detik (diturunkan biar deteksi UI lebih cepet)
     max_backoff: float = 4.0                     # max tunggu antar dump (lag protection)
 
     _tree: ET.ElementTree | None = field(default=None, repr=False)
