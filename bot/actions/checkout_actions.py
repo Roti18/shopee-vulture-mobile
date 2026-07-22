@@ -48,14 +48,14 @@ async def wait_for_checkout_page(
 
     await asyncio.sleep(0.1)
 
-    while (time.monotonic() - t0) < max_wait:
-        # Pake TTL cache — gak perlu dump tiap 0.3s, cache valid 1.5s
-        tree = await cache.get(adb)
-        if tree is None:
-            await asyncio.sleep(poll)
-            continue
+    # First dump FORCE — caller baru aja tap submit.
+    tree = await cache.get(adb, force=True)
+    if tree is not None and CheckoutParser(cache).is_checkout_page():
+        return True
 
-        if CheckoutParser(cache).is_checkout_page():
+    while (time.monotonic() - t0) < max_wait:
+        tree = await cache.get(adb)
+        if tree is not None and CheckoutParser(cache).is_checkout_page():
             log.info("Halaman checkout terdeteksi (%.1fs)", time.monotonic() - t0)
             return True
         await asyncio.sleep(poll)
@@ -72,8 +72,10 @@ async def wait_for_order_result(
     """
     t0 = time.monotonic()
     while (time.monotonic() - t0) < max_wait:
-        # Pake TTL cache
         tree = await cache.get(adb)
+        if tree is None:
+            await asyncio.sleep(poll)
+            continue
         parser = CheckoutParser(cache)
         screen = parser.detect_screen()
         if screen in (ScreenType.ORDER_SUCCESS, ScreenType.PAYMENT_PAGE):

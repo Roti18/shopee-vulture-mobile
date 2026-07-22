@@ -84,10 +84,16 @@ class OpenProductHandler:
         # Kasih waktu awal biar app mulai load
         await asyncio.sleep(0.3)
 
+        # First dump FORCE — URL baru dibuka, cache pasti stale.
+        tree = await self._cache.get(self._adb, force=True)
+        if tree is not None:
+            if ProductParser(self._cache).get_buy_now_button() is not None:
+                log.info("Tombol Beli Dengan Voucher terdeteksi (%.1fs)", time.monotonic() - t0)
+                return True
+
         while (time.monotonic() - t0) < max_wait:
             tree = await self._cache.get(self._adb)
             if tree is not None:
-                # Cek cuma elemen BUY_NOW_BUTTON — bukan full page detect
                 if ProductParser(self._cache).get_buy_now_button() is not None:
                     log.info("Tombol Beli Dengan Voucher terdeteksi (%.1fs)", time.monotonic() - t0)
                     return True

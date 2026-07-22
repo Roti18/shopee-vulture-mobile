@@ -97,13 +97,15 @@ async def wait_for_variant_popup(
 
     await asyncio.sleep(0.1)
 
+    # First dump FORCE — caller baru aja tap, cache pasti stale.
+    # Tanpa ini, harus nunggu TTL expire (0.8-1.5s) sebelum dump baru diambil.
+    tree = await cache.get(adb, force=True)
+    if tree is not None and VariantParser(cache).is_variant_popup_open():
+        return True
+
     while (time.monotonic() - t0) < max_wait:
         tree = await cache.get(adb)
-        if tree is None:
-            await asyncio.sleep(poll)
-            continue
-
-        if VariantParser(cache).is_variant_popup_open():
+        if tree is not None and VariantParser(cache).is_variant_popup_open():
             log.info("Popup varian muncul (%.1fs)", time.monotonic() - t0)
             return True
         await asyncio.sleep(poll)
