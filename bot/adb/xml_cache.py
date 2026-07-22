@@ -58,15 +58,21 @@ class XMLCache:
         else:
             if force:
                 # Force dump setelah tap — wajar kadang gagal (UI transisi).
-                # Jangan nuke cache, jangan grow backoff. Caller tau return None.
-                log.debug("XMLCache: force dump gagal (UI transisi) — return None")
+                # Jangan nuke cache, jangan grow backoff.
+                # Caller tinggal retry dengan get(force=False) secepatnya.
+                log.debug("XMLCache: force dump gagal — return None, cache tetap utuh")
                 return None
 
-            # Non-force failure: grow adaptive backoff tapi tetap balikin stale tree
-            self._backoff = min(
-                (self._backoff + 0.5) * 2 if self._backoff > 0 else 0.5,
-                self.max_backoff,
-            )
+            # Non-force failure: tetap pakai backoff+stale. Tapi kalo backoff udah
+            # 2s+ langsung reset 0 — ADB mungkin lagi recover, gak perlu dihukum.
+            if self._backoff >= 2.0:
+                self._backoff = 0.5
+                log.debug("XMLCache: backoff tinggi (%ds) — reset ke 0.5s", self._backoff)
+            else:
+                self._backoff = min(
+                    (self._backoff + 0.3) * 1.5 if self._backoff > 0 else 0.3,
+                    self.max_backoff,
+                )
             log.warning(
                 "XMLCache: dump gagal, backoff → %.1fs", self._backoff
             )

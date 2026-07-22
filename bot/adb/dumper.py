@@ -1,9 +1,10 @@
 """
-UI XML dumper: uiautomator dump → adb pull → parse.
+UI XML dumper: uiautomator dump → shell cat → parse.
 
-v3: Kembali ke adb pull. ADB punya protokol transfer binary yang lebih efisien
-    daripada shell pipeline `cat` lewat stdout — terutama buat file XML yg ~1MB+.
-    adb pull bisa 2-5x lebih cepat.
+v4: shell cat instead of adb pull — lebih reliable di Wi-Fi ADB.
+    adb pull fork child process yg inherit pipe FD, sering hang 30s+
+    di koneksi Wi-Fi yang kurang stabil. shell cat pake stdout pipe biasa,
+    timeout 10s udah cukup buat file XML < 2MB.
 """
 import asyncio
 import time
@@ -28,25 +29,30 @@ async def dump_xml(adb: "ADBClient") -> ET.ElementTree | None:
 
     t0 = time.monotonic()
 
-    # Dump di device — shell command, pake PIPE aman
+    # Dump di device — shell command
     rc, out, err = await adb._run(
-        ["shell", "uiautomator", "dump", DEVICE_DUMP_PATH], timeout=15
+        ["shell", "uiautomator", "dump", DEVICE_DUMP_PATH], timeout=10
     )
     if rc != 0:
         log.error("uiautomator dump gagal: %s", err)
         return None
 
-    # Pull ke lokal — pake DEVNULL biar gak hang.
-    # adb pull fork child process buat transfer binary, inherit pipe FD
-    # bikin proc.communicate() gak pernah EOF.
-    rc, _, err = await adb._run(["pull", DEVICE_DUMP_PATH, str(LOCAL_DUMP_PATH)], capture_output=False)
+    # Baca file dump via shell cat — lebih reliable daripada adb pull.
+    # adb pull fork child process yg inherit pipe FD, bisa hang di Wi-Fi ADB.
+    # shell cat output lewat stdout pipe, timeout 10s cukup buat file < 2MB.
+    rc, xml_str, err = await adb._run(
+        ["shell", "cat", DEVICE_DUMP_PATH], timeout=10
+    )
     if rc != 0:
-        log.error("adb pull xml dump gagal: %s", err)
+        log.error("adb cat xml dump gagal: %s", err)
+        return None
+    if not xml_str:
+        log.error("adb cat xml dump: output kosong")
         return None
 
     # Parse
     try:
-        tree = ET.parse(LOCAL_DUMP_PATH)
+        tree = ET.ElementTree(ET.fromstring(xml_str.encode("utf-8")))
         duration_ms = (time.monotonic() - t0) * 1000
         log.debug("XML dump selesai (%.0f ms)", duration_ms)
         return tree
