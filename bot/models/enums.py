@@ -16,12 +16,13 @@ class BotMode(Enum):
 
 class WorkflowState(Enum):
     """
-    State machine flow (CHECK_STOCK dihapus — stok hanya valid dari popup varian):
+    State machine flow:
 
     MONITOR mode:
       IDLE → OPEN_PRODUCT → BUY_VOUCHER → CHECK_VARIANT
-          stok >= threshold → alert Telegram → close popup → loop
-          stok < threshold → close popup → loop
+          stok >= threshold → alert Telegram → loop langsung (gak nutup popup)
+          stok < threshold → loop langsung (gak nutup popup)
+      MONITOR_POPUP ← loop scan popup tanpa tutup/buka ulang
 
     EXECUTE mode:
       IDLE → OPEN_PRODUCT → BUY_VOUCHER → CHECK_VARIANT → CHECKOUT
@@ -34,6 +35,7 @@ class WorkflowState(Enum):
     OPEN_PRODUCT = "open_product"
     BUY_VOUCHER = "buy_voucher"
     CHECK_VARIANT = "check_variant"
+    MONITOR_POPUP = "monitor_popup"
     BUY_NOW = "buy_now"
     CHECKOUT = "checkout"
     VERIFY_PAYMENT = "verify_payment"
