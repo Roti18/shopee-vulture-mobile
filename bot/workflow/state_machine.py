@@ -63,33 +63,53 @@ class StateMachine:
         """
         log.info("StateMachine: mulai dari state %s", self._runtime.workflow_state.value)
 
+        reconnect_attempts = 0
+        MAX_RECONNECT_ATTEMPTS = 5
+
         while True:
             # Handle stopped, idle, paused, blackout
             while self._runtime.mode in (BotMode.STOPPED, BotMode.IDLE, BotMode.PAUSED, BotMode.BLACKOUT):
                 await asyncio.sleep(1)
 
             # ── Pastikan device nyantol sebelum state transition pertama ──
-            if not await self._adb.is_connected():
-                # Coba reconnect dulu — terutama penting buat WiFi ADB via Tailscale
-                # yang bisa putus kapan aja (route flapping, idle timeout, dll)
+            # Skip guard kalo lagi RECOVERY — recovery handler sendiri yg
+            # tangani koneksi (L2 ADB reconnect, L4 restart ADB server).
+            if self._runtime.workflow_state != WorkflowState.RECOVERY and not await self._adb.is_connected():
                 if self._adb.wifi_host:
-                    log.warning("StateMachine: ADB device lost, coba reconnect ke %s...", self._adb.wifi_host)
+                    log.warning(
+                        "StateMachine: ADB device lost (%d), coba reconnect ke %s...",
+                        reconnect_attempts, self._adb.wifi_host,
+                    )
                     ok = await self._adb.connect_wifi()
                     if ok:
                         log.info("StateMachine: ADB reconnect sukses")
+                        reconnect_attempts = 0
                         continue
-                log.warning("StateMachine: ADB device belum terhubung, tunggu 3s...")
-                await asyncio.sleep(3)
+
+                # Exponential backoff: 3s → 6s → 12s → 24s → 30s (cap)
+                reconnect_attempts = min(reconnect_attempts + 1, MAX_RECONNECT_ATTEMPTS)
+                backoff = min(3 * (2 ** (reconnect_attempts - 1)), 30)
+                log.warning(
+                    "StateMachine: ADB device belum terhubung, tunggu %ds... "
+                    "(attempt %d/%d)",
+                    backoff, reconnect_attempts, MAX_RECONNECT_ATTEMPTS,
+                )
+                await asyncio.sleep(backoff)
                 continue
 
             # ── Reset runtime state dari sesi sebelumnya ───────────────────
             # Kalo startup state-nya RECOVERY, jangan diulang — reset ke IDLE
             # biar user /start dulu dari Telegram.
+            # TAPI skip reset kalo device lost — nanti recovery path yg restart ADB server.
             if self._runtime.workflow_state == WorkflowState.RECOVERY:
-                log.info("StateMachine: reset state RECOVERY → IDLE (startup fresh)")
-                self._runtime.workflow_state = WorkflowState.IDLE
-                self._runtime.mode = BotMode.IDLE
-                continue
+                if self._adb.wifi_host and not await self._adb.is_connected():
+                    # Device lagi lost — biarin recovery yang handle (L4 restart ADB)
+                    pass
+                else:
+                    log.info("StateMachine: reset state RECOVERY → IDLE (startup fresh)")
+                    self._runtime.workflow_state = WorkflowState.IDLE
+                    self._runtime.mode = BotMode.IDLE
+                    continue
 
             state = self._runtime.workflow_state
             handler = self._handlers.get(state)
