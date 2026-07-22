@@ -63,12 +63,18 @@ class XMLCache:
             log.warning(
                 "XMLCache: dump gagal, backoff → %.1fs", self._backoff
             )
-            # Kalo ada cached tree sebelumnya, jangan hapus — return aja yang lama
-            # (biar parser bisa tetap kerja dengan snapshot terakhir)
-            if self._tree is not None:
+            # Kalo force=True, caller butuh data fresh — jangan balikin stale tree
+            # (biar recovery gak salah deteksi screen berdasarkan XML lama)
+            if force:
+                log.warning("XMLCache: force=True tapi dump gagal — return None")
+                self._tree = None
+                self._cached_at = 0.0
+            elif self._tree is not None:
+                # Kalo polling biasa, pake cached tree aja (resilient terhadap lag sesaat)
                 log.debug("XMLCache: pake cached tree yang lama")
                 return self._tree
-            self._tree = None
+            else:
+                self._tree = None
             self._cached_at = 0.0
 
         return self._tree

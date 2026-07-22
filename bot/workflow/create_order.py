@@ -40,8 +40,9 @@ class CreateOrderHandler:
 
         # Tunggu sampai layar berubah dari checkout_page
         t0 = time.monotonic()
-        max_wait = 10.0
+        max_wait = 15.0
         parser = None
+        screen = ScreenType.UNKNOWN
 
         while (time.monotonic() - t0) < max_wait:
             tree = await self._cache.get(self._adb)
@@ -58,14 +59,20 @@ class CreateOrderHandler:
                 break
 
             if screen != ScreenType.CHECKOUT_PAGE:
-                # Layar loading atau unknown, tunggu sebentar agar render selesai
+                # Layar loading atau unknown — jangan break, lanjut polling
+                # (sebelumnya di-treat sebagai "transisi loading" & langsung break, bikin false positive)
                 log.info("CreateOrder: layar bukan checkout (%s), tunggu transisi...", screen.value)
-                await asyncio.sleep(0.8)
-                await self._cache.get(self._adb)
-                parser = CheckoutParser(self._cache)
-                break
 
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.3)
+
+        # ── VALIDASI: pastikan beneran order success / payment ─────────────
+        if screen not in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
+            log.error(
+                "CREATE_ORDER: screen bukan ORDER_SUCCESS/PAYMENT_PAGE (%s) — "
+                "false positive tercegah, redirect ke RECOVERY",
+                screen.value,
+            )
+            return WorkflowState.RECOVERY
 
         # Screenshot diambil setelah dipastikan sudah beralih dari checkout_page
         screenshot_path = await screencap.capture(self._adb)
@@ -81,6 +88,7 @@ class CreateOrderHandler:
                 product_name=self._product.name,
                 variant=self._product.variant,
                 price=subtitle or "—",
+                qty=self._product.purchase_quantity,
                 screenshot_path=screenshot_path,
             )
         )

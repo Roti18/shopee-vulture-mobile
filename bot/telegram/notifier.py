@@ -117,6 +117,7 @@ class TelegramNotifier:
             "✅ <b>Order Success</b>\n\n"
             f"Product : {event.product_name}\n"
             f"Variant : {event.variant}\n"
+            f"Qty     : {event.qty} pcs\n"
             f"Info    : {event.price}\n"
             f"Waktu   : {event.timestamp.strftime('%H:%M:%S')}"
         )

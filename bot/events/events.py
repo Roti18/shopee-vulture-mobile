@@ -70,6 +70,7 @@ class OrderSuccessEvent:
     product_name: str
     variant: str
     price: str
+    qty: int = 1
     screenshot_path: Path | None = None
     timestamp: datetime = field(default_factory=datetime.now)
 
