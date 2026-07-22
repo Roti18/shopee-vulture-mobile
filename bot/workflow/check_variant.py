@@ -71,9 +71,7 @@ class CheckVariantHandler:
     async def _handle_monitor(self, parser: VariantParser) -> WorkflowState:
         all_stocks = parser.get_all_stock_counts()
         if not all_stocks:
-            # Popup gak ada stock info — mungkin salah screen, reopen aja
-            await vacts.close_variant_popup(self._adb, self._cache)
-            return WorkflowState.BUY_VOUCHER
+            return WorkflowState.RECOVERY
 
         variant_info = parser.find_variant_with_stock(
             target_variant=self._product.variant,
@@ -86,8 +84,8 @@ class CheckVariantHandler:
                 stock_count=max(all_stocks),
                 threshold=self._product.minimum_stock,
             ))
-            # Popup masih terbuka — tinggal tunggu interval, gak perlu close + reopen.
-            return WorkflowState.MONITOR_POPUP
+            await vacts.close_variant_popup(self._adb, self._cache)
+            return WorkflowState.BUY_VOUCHER
 
         await self._bus.emit(ev.VariantStockDetectedEvent(
             product_name=self._product.name,
@@ -95,8 +93,8 @@ class CheckVariantHandler:
             stock_count=variant_info.stock_count,
             is_checkout=False,
         ))
-        # Stock terdeteksi, popup gak usah ditutup — nanti di-scan ulang.
-        return WorkflowState.MONITOR_POPUP
+        await vacts.close_variant_popup(self._adb, self._cache)
+        return WorkflowState.BUY_VOUCHER
 
     # ═══════════════════════════════════════════════════════════════════ #
     # EXECUTE — tap variant option, cek submit, checkout

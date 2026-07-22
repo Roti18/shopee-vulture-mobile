@@ -50,7 +50,6 @@ from bot.workflow.checkout import CheckoutHandler
 from bot.workflow.verify_payment import VerifyPaymentHandler
 from bot.workflow.create_order import CreateOrderHandler
 from bot.workflow.cooldown import CooldownHandler
-from bot.workflow.monitor_popup import MonitorPopupHandler
 
 log = get_logger(__name__)
 
@@ -322,8 +321,6 @@ async def main() -> None:
                 BuyVoucherHandler(adb, cache))
     sm.register(WorkflowState.CHECK_VARIANT,
                 CheckVariantHandler(adb, cache, bus, cfg.product, runtime))
-    sm.register(WorkflowState.MONITOR_POPUP,
-                MonitorPopupHandler(adb, cache, bus, cfg.product, runtime))
     sm.register(WorkflowState.BUY_NOW,
                 BuyNowHandler(adb, cache))
     sm.register(WorkflowState.CHECKOUT,

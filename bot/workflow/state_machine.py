@@ -145,10 +145,6 @@ class StateMachine:
                     prev_state == WorkflowState.CHECK_VARIANT
                     and next_state == WorkflowState.BUY_VOUCHER
                 )
-                is_monitor_popup_cycle = (
-                    prev_state in (WorkflowState.CHECK_VARIANT, WorkflowState.MONITOR_POPUP)
-                    and next_state == WorkflowState.MONITOR_POPUP
-                )
                 is_recovery_cycle = (
                     prev_state == WorkflowState.RECOVERY
                     and next_state in (WorkflowState.OPEN_PRODUCT, WorkflowState.BUY_VOUCHER,
@@ -156,7 +152,7 @@ class StateMachine:
                                        WorkflowState.CREATE_ORDER)
                 )
 
-                if is_monitoring_cycle or is_restock_cycle or is_monitor_popup_cycle or is_recovery_cycle:
+                if is_monitoring_cycle or is_restock_cycle or is_recovery_cycle:
                     if self._loop_sched:
                         await self._loop_sched.wait()
 
