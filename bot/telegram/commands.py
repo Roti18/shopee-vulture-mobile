@@ -117,6 +117,9 @@ class CommandHandlers:
         await update.message.reply_text("⏸ <b>Bot di-pause</b>. /resume untuk melanjutkan.", parse_mode="HTML")
 
     async def cmd_resume(self, update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
+        # Bangunin layar dulu — mungkin user manual sleep/pause pas HP mati
+        if self._adb is not None:
+            await self._adb.ensure_screen_on()
         self._runtime.mode = BotMode.RUNNING
         self._runtime.metrics.last_state_change = datetime.now()
         await self._bus.emit(ev.BotResumedEvent())

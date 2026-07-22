@@ -43,6 +43,9 @@ class OpenProductHandler:
             log.error("OPEN_PRODUCT: URL produk belum diset")
             return WorkflowState.RECOVERY
 
+        # Bangunin layar kalo mati — biar gak tap kosong di gelap
+        await self._adb.ensure_screen_on()
+
         ok = await self._adb.open_url(self._product.url)
         if not ok:
             log.error("OPEN_PRODUCT: gagal open URL")

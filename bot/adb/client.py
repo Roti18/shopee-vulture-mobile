@@ -172,7 +172,7 @@ class ADBClient:
             return True  # default ke True kalo gagal biar gak salah bangunin
         for line in out.splitlines():
             if "mWakefulness=" in line:
-                return "Awake" in line
+                return "Awake" in line or "Dozing" not in line
         return True
 
     async def ensure_screen_on(self) -> None:
@@ -183,16 +183,27 @@ class ADBClient:
         log.info("Screen mati/sleep — bangunin...")
         await self.unlock_screen()
 
+        # Verifikasi — kalo masih mati, cobain lagi setelah jeda
+        await asyncio.sleep(1)
+        if not await self.is_screen_awake():
+            log.info("Screen masih mati — coba lagi...")
+            await self.screen_on()
+            await asyncio.sleep(0.5)
+            await self.swipe(540, 2000, 540, 400, 500)
+
     async def screen_on(self) -> None:
-        await self.key(82)      # KEYCODE_MENU — wake up
+        """Bangunkan layar via POWER button. KEYCODE_POWER (26) lebih reliable daripada MENU (82)."""
+        await self.key(26)      # KEYCODE_POWER — wake up
 
     async def screen_off(self) -> None:
         await self.key(26)      # KEYCODE_POWER
 
     async def unlock_screen(self) -> None:
+        """Bangunin layar + swipe up buat unlock."""
         await self.screen_on()
-        await asyncio.sleep(0.5)
-        await self.swipe(540, 1800, 540, 900, 300)   # swipe up to unlock
+        await asyncio.sleep(0.8)      # tunggu display beneran nyala
+        # Swipe dari bawah ke atas — lebih panjang (2000→300) biar pasti kena
+        await self.swipe(540, 2000, 540, 300, 600)
 
     # ------------------------------------------------------------------ #
     # App
