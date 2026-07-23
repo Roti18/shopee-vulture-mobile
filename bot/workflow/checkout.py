@@ -25,7 +25,18 @@ class CheckoutHandler:
         self._runtime = runtime
 
     async def execute(self) -> WorkflowState:
-        await cacts.wait_for_checkout_page(self._adb, self._cache, max_wait=6.0)
+        if self._runtime and self._runtime.last_submit_x > 0:
+            sx, sy = self._runtime.last_submit_x, self._runtime.last_submit_y
+            log.warning(
+                "CHECKOUT: pakai fallback koordinat submit (%d, %d)",
+                sx, sy,
+            )
+
+            for _ in range(6):
+                await self._adb.tap(sx, sy)
+                await asyncio.sleep(0.12)
+
+            return WorkflowState.VERIFY_PAYMENT
 
         screen = await cacts.spam_confirm_order(
             self._adb,
@@ -35,17 +46,6 @@ class CheckoutHandler:
         )
 
         if screen == ScreenType.UNKNOWN:
-            if self._runtime and self._runtime.last_submit_x > 0:
-                sx, sy = self._runtime.last_submit_x, self._runtime.last_submit_y
-                log.warning(
-                    "CHECKOUT: XML dump timeout, pakai fallback koordinat submit (%d, %d)",
-                    sx, sy,
-                )
-                for _ in range(3):
-                    await self._adb.tap(sx, sy)
-                    await asyncio.sleep(0.15)
-                return WorkflowState.VERIFY_PAYMENT
-
             screenshot_path = await screencap.capture(self._adb)
             log.error(
                 "CHECKOUT: tombol 'Buat Pesanan' gagal diproses, screenshot=%s",
