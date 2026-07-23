@@ -23,27 +23,35 @@ class CheckoutHandler:
         self._product = product
 
     async def execute(self) -> WorkflowState:
-        # Refresh dump
-        await self._cache.get(self._adb, force=True)
+        # Tunggu halaman checkout beneran muncul — polling aja, gausa force dump
+        # yang gampang timeout. Kalo submit udah di-tap, ini pasti landing
+        # (kecuali Shopee error, yg bakal ketangkep di tap loop bawah).
+        arrived = await cacts.wait_for_checkout_page(
+            self._adb, self._cache, max_wait=12.0
+        )
+        if not arrived:
+            log.warning("CHECKOUT: halaman checkout tidak muncul dalam 12s")
+            # Jangan langsung RECOVERY — kemungkinan submit gagal,
+            # back ke halaman produk, coba dari BUY_VOUCHER lagi
+            await self._adb.press_back()
+            await asyncio.sleep(0.5)
+            return WorkflowState.BUY_VOUCHER
 
         parser = CheckoutParser(self._cache)
-        if not parser.is_checkout_page():
-            log.error("CHECKOUT: bukan halaman checkout, recovery")
-            return WorkflowState.RECOVERY
 
         # Log total pembayaran di bottom panel
         total = parser.get_total_payment()
         log.info("CHECKOUT: total pembayaran = %s", total)
 
-        # Cari tombol Buat Pesanan
+        # ── Tap Loop 0.8s — Tap "Buat Pesanan" terus sampai order terkirim ──
+        # Gausa resolve element di loop — tombolnya anchored di bottom,
+        # tap koordinat tetap tiap iterasi. Kalo screen berubah ke payment/success
+        # yg disengaja atau tidak, lanjut verify.
         el = parser.get_place_order_button()
         if el is None:
             log.error("CHECKOUT: tombol 'Buat Pesanan' tidak ditemukan")
             return WorkflowState.RECOVERY
 
-        # ── Tap Loop 0.8s ──────────────────────────────────────────────────
-        # Tap setiap 0.8 detik sampai berhasil.
-        # User tinggal /stop kalo mau berhenti.
         while True:
             log.info(
                 "Tap 'Buat Pesanan' via [%s] at (%d, %d)",
@@ -52,7 +60,7 @@ class CheckoutHandler:
             await self._adb.tap(el.tap_x, el.tap_y)
             await asyncio.sleep(0.8)
 
-            tree = await self._cache.get(self._adb, force=True)
+            tree = await self._cache.get(self._adb)
             if tree is None:
                 continue
 

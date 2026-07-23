@@ -34,7 +34,6 @@ from bot.models.bot_state import BotRuntimeState
 from bot.models.enums import WorkflowState, BotMode
 from bot.models.product import ProductConfig
 from bot.parser.variant_parser import VariantParser
-from bot.actions import checkout_actions as cacts
 from bot.utils.logger import get_logger
 
 log = get_logger(__name__)
@@ -192,17 +191,9 @@ class CheckVariantHandler:
             await vacts.close_variant_popup(self._adb, self._cache)
             return WorkflowState.BUY_VOUCHER
 
-        # ── Tunggu checkout ──────────────────────────────────────────
-        arrived = await cacts.wait_for_checkout_page(
-            self._adb, self._cache, max_wait=15.0
-        )
-        if not arrived:
-            log.warning("EXECUTE: checkout page timeout")
-            await self._adb.press_back()
-            await asyncio.sleep(0.5)
-            await self._adb.press_back()
-            return WorkflowState.BUY_VOUCHER
-
+        # Submit berhasil — langsung proceed ke CHECKOUT.
+        # Gausa dump/verify checkout page di sini, ntar di CheckoutHandler
+        # yang ngecek. Press_back HARAM — itu yg dorong user keluar.
         return WorkflowState.CHECKOUT
 
     # ═══════════════════════════════════════════════════════════════════ #

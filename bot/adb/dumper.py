@@ -23,11 +23,19 @@ async def dump_xml(adb: "ADBClient") -> ET.ElementTree | None:
     """
     Jalankan uiautomator dump → pull → parse.
     Returns ElementTree atau None jika gagal.
+
+    Sebelum dump, kill dulu instance uiautomator yg mungkin stuck
+    dari dump sebelumnya — biar gak numpuk dan timeout semua.
     """
     # Skip import di top-level biar gak circular
     from bot.adb.client import ADBClient
 
     t0 = time.monotonic()
+
+    # Kill uiautomator yg macet dari dump sebelumnya — ini penyebab
+    # utama timeout beruntun: instance pertama hang, instance baru
+    # antri di belakangnya dan ikut timeout.
+    await adb._run(["shell", "pkill", "-f", "uiautomator"], timeout=3)
 
     # Dump di device — shell command
     rc, out, err = await adb._run(
