@@ -1,11 +1,15 @@
 """
 Tiered Recovery — 5 level dari paling ringan ke paling drastis.
 
-Level 1: Soft retry — dump XML ulang, identifikasi screen
-Level 2: ADB reconnect — disconnect + connect ulang
+Level 1: Coba dump XML. Kalo gagal karena lag → langsung redirect URL.
+         Kalo berhasil & detected checkout/payment/success → lanjut normal.
+         Kalo berhasil & screen lain → redirect URL.
+Level 2: ADB reconnect — disconnect + connect ulang (ADB beneran mati)
 Level 3: Force stop app — am force-stop Shopee → buka ulang
 Level 4: Restart ADB server — kill-server + start-server
 Level 5: Panic — stop bot, notifikasi Telegram
+
+Prinsip: LAG != ADB MATI. Jangan waste time retry 3× + reconnect kalo cuma lag.
 """
 from __future__ import annotations
 
@@ -42,7 +46,6 @@ class TieredRecovery:
         self._bus = bus
         self._runtime = runtime
         self._product = product
-        self._l1_attempts = 0
 
     async def recover(self) -> WorkflowState:
         level = self._runtime.recovery_level
@@ -60,22 +63,8 @@ class TieredRecovery:
         if result != WorkflowState.RECOVERY:
             # Recovery berhasil — reset level
             self._runtime.recovery_level = RecoveryLevel.L1_SOFT_RETRY
-            self._l1_attempts = 0
             await self._bus.emit(ev.RecoverySuccessEvent(level=level))
         else:
-            # Jika di level L1, coba hingga 3 kali sebelum naik ke L2 (menghindari force-stop saat lag jaringan)
-            if level == RecoveryLevel.L1_SOFT_RETRY:
-                self._l1_attempts += 1
-                log.info("Recovery L1 gagal: percobaan %d/3 sebelum eskalasi ke L2", self._l1_attempts)
-                # Exponential backoff: 1s, 2s, diikuti sleep 1s setelah retry
-                backoff = 2 ** (self._l1_attempts - 1)
-                await asyncio.sleep(backoff)
-                if self._l1_attempts < 3:
-                    # Tetap di L1
-                    return WorkflowState.RECOVERY
-
-            # Reset counter L1 jika eskalasi level
-            self._l1_attempts = 0
             # Naikkan level untuk percobaan berikutnya
             next_level_val = min(level.value + 1, MAX_RECOVERY_LEVEL.value)
             self._runtime.recovery_level = RecoveryLevel(next_level_val)
@@ -103,35 +92,35 @@ class TieredRecovery:
 
     async def _l1_soft_retry(self) -> WorkflowState:
         """
-        Dump XML ulang → identifikasi screen saat ini.
-        Jika product page → lanjut normal.
-        Jika bukan → coba open URL.
+        Coba dump XML. Kalo gagal (lag) → langsung redirect URL.
+        Kalo berhasil & detected checkout/payment/success → lanjut.
+        Kalo berhasil & screen lain (product page, variant popup, unknown) → redirect URL.
+
+        Prinsip: LAG != ADB MATI. Gausa retry 3× + reconnect cuma karena dump timeout.
         """
         log.info("Recovery L1: dump XML ulang")
         tree = await self._cache.get(self._adb, force=True)
         if tree is None:
-            log.warning("Recovery L1: dump gagal → naik L2")
-            return WorkflowState.RECOVERY
+            log.warning("Recovery L1: dump gagal (lag) → langsung redirect URL")
+            return await self._open_product_url()
 
         screen = self._detect_current_screen()
         log.info("Recovery L1: screen terdeteksi = %s", screen.value)
 
-        if screen == ScreenType.PRODUCT_PAGE:
-            return WorkflowState.BUY_VOUCHER
-        if screen == ScreenType.VARIANT_POPUP:
-            log.info("Recovery L1: Terdeteksi popup varian terbuka. Lanjut ke CHECK_VARIANT.")
-            return WorkflowState.CHECK_VARIANT
+        # Screen checkout/payment/success → lanjut normal
         if screen == ScreenType.CHECKOUT_PAGE:
-            log.info("Recovery L1: Terdeteksi halaman checkout. Lanjut ke CHECKOUT.")
+            log.info("Recovery L1: Terdeteksi halaman checkout.")
             return WorkflowState.CHECKOUT
         if screen == ScreenType.PAYMENT_PAGE:
-            log.info("Recovery L1: Terdeteksi halaman payment. Lanjut ke CREATE_ORDER.")
+            log.info("Recovery L1: Terdeteksi halaman payment.")
             return WorkflowState.CREATE_ORDER
         if screen == ScreenType.ORDER_SUCCESS:
-            log.info("Recovery L1: Terdeteksi order sukses. Lanjut ke CREATE_ORDER.")
+            log.info("Recovery L1: Terdeteksi order sukses.")
             return WorkflowState.CREATE_ORDER
 
-        # Buka ulang URL produk
+        # Screen lain (termasuk product page & variant popup) → redirect URL
+        # Alasannya: kalo sampe masuk recovery, state machine udah gak sinkron.
+        # Mending redirect URL biar muter dari awal yang bener.
         return await self._open_product_url()
 
     # ------------------------------------------------------------------ #
@@ -146,20 +135,19 @@ class TieredRecovery:
             return WorkflowState.RECOVERY
         await asyncio.sleep(2)
         tree = await self._cache.get(self._adb, force=True)
-        if tree is not None:
-            screen = self._detect_current_screen()
-            log.info("Recovery L2: setelah reconnect, screen terdeteksi = %s", screen.value)
-            if screen == ScreenType.CHECKOUT_PAGE:
-                return WorkflowState.CHECKOUT
-            if screen == ScreenType.PAYMENT_PAGE:
-                return WorkflowState.CREATE_ORDER
-            if screen == ScreenType.ORDER_SUCCESS:
-                return WorkflowState.CREATE_ORDER
-            if screen == ScreenType.VARIANT_POPUP:
-                return WorkflowState.CHECK_VARIANT
-            if screen == ScreenType.PRODUCT_PAGE:
-                return WorkflowState.BUY_VOUCHER
-
+        if tree is None:
+            log.warning("Recovery L2: dump gagal setelah reconnect — redirect URL")
+            return await self._open_product_url()
+        screen = self._detect_current_screen()
+        log.info("Recovery L2: setelah reconnect, screen terdeteksi = %s", screen.value)
+        # Screen checkout/payment/success → lanjut normal
+        if screen == ScreenType.CHECKOUT_PAGE:
+            return WorkflowState.CHECKOUT
+        if screen == ScreenType.PAYMENT_PAGE:
+            return WorkflowState.CREATE_ORDER
+        if screen == ScreenType.ORDER_SUCCESS:
+            return WorkflowState.CREATE_ORDER
+        # Screen lain → redirect URL (state machine gak sinkron)
         return await self._open_product_url()
 
     # ------------------------------------------------------------------ #
