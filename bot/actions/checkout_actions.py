@@ -40,6 +40,68 @@ async def confirm_order(adb: ADBClient, cache: XMLCache) -> bool:
     return await adb.tap(el.tap_x, el.tap_y)
 
 
+async def spam_confirm_order(
+    adb: ADBClient,
+    cache: XMLCache,
+    max_taps: int = 12,
+    tap_interval: float = 0.18,
+) -> ScreenType:
+    """
+    Tap tombol 'Buat Pesanan' berulang cepat sampai layar berubah.
+
+    Return:
+      - ORDER_SUCCESS / PAYMENT_PAGE kalau layar sudah pindah
+      - CHECKOUT_PAGE kalau masih di checkout setelah spam
+      - UNKNOWN kalau tombol tidak bisa di-resolve / tap gagal total
+    """
+    parser = CheckoutParser(cache)
+    if not parser.is_checkout_page():
+        log.warning("spam_confirm_order: bukan halaman checkout")
+        return ScreenType.UNKNOWN
+
+    last_screen = ScreenType.CHECKOUT_PAGE
+
+    for attempt in range(1, max_taps + 1):
+        force_dump = attempt == 1 or attempt % 3 == 0
+        tree = await cache.get(adb, force=force_dump)
+        if tree is not None:
+            parser = CheckoutParser(cache)
+            last_screen = parser.detect_screen()
+            if last_screen in (ScreenType.ORDER_SUCCESS, ScreenType.PAYMENT_PAGE):
+                log.info(
+                    "spam_confirm_order: layar %s terdeteksi setelah %d tap",
+                    last_screen.value,
+                    attempt - 1,
+                )
+                return last_screen
+
+        el = parser.get_place_order_button()
+        if el is None:
+            log.warning("spam_confirm_order: tombol 'Buat Pesanan' tidak ditemukan")
+            return ScreenType.UNKNOWN
+
+        log.info(
+            "spam_confirm_order #%d via [%s] at (%d, %d)",
+            attempt,
+            el.resolved_via,
+            el.tap_x,
+            el.tap_y,
+        )
+        ok = await adb.tap(el.tap_x, el.tap_y)
+        if not ok:
+            log.warning("spam_confirm_order: tap gagal pada attempt %d", attempt)
+            continue
+
+        await asyncio.sleep(tap_interval)
+
+    tree = await cache.get(adb, force=True)
+    if tree is not None:
+        parser = CheckoutParser(cache)
+        last_screen = parser.detect_screen()
+
+    return last_screen
+
+
 async def wait_for_checkout_page(
     adb: ADBClient, cache: XMLCache, max_wait: float = 15.0, poll: float = 0.3
 ) -> bool:

@@ -1,19 +1,15 @@
-"""State: CHECKOUT — cari teks 'Buat Pesanan' di XML, tap itu.
-Kalo dump timeout, pake koordinat submit button dari check_variant."""
+"""State: CHECKOUT — spam tombol 'Buat Pesanan' lalu lanjut verifikasi order."""
 from __future__ import annotations
 
-import asyncio
-
+from bot.adb import screencap
 from bot.adb.client import ADBClient
-from bot.adb.dumper import center_of_bounds
 from bot.adb.xml_cache import XMLCache
+from bot.actions import checkout_actions as cacts
 from bot.models.bot_state import BotRuntimeState
-from bot.models.enums import WorkflowState
+from bot.models.enums import WorkflowState, ScreenType
 from bot.utils.logger import get_logger
 
 log = get_logger(__name__)
-
-TARGET_TEXT = "Buat Pesanan"
 
 
 class CheckoutHandler:
@@ -27,32 +23,21 @@ class CheckoutHandler:
         self._runtime = runtime
 
     async def execute(self) -> WorkflowState:
-        # Coba cari "Buat Pesanan" di XML
-        tree = await self._cache.get(self._adb, force=True)
-        if tree is not None:
-            for node in self._cache.all_nodes():
-                text = node.get("text", "") or node.get("content-desc", "")
-                if TARGET_TEXT in text:
-                    bounds = node.get("bounds", "")
-                    center = center_of_bounds(bounds)
-                    if center:
-                        cx, cy = center
-                        log.info("CHECKOUT: tap '%s' at (%d, %d)", text, cx, cy)
-                        await self._adb.tap(cx, cy)
-                        await asyncio.sleep(2)
-                        return WorkflowState.VERIFY_PAYMENT
+        await cacts.wait_for_checkout_page(self._adb, self._cache, max_wait=6.0)
 
-            log.warning("CHECKOUT: teks '%s' gak ditemukan di XML", TARGET_TEXT)
-        else:
-            log.warning("CHECKOUT: dump timeout")
+        screen = await cacts.spam_confirm_order(
+            self._adb,
+            self._cache,
+            max_taps=12,
+            tap_interval=0.12,
+        )
 
-        # Fallback: pake koordinat submit button dari check_variant
-        if self._runtime and self._runtime.last_submit_x > 0:
-            sx, sy = self._runtime.last_submit_x, self._runtime.last_submit_y
-            log.info("CHECKOUT: tap fallback koordinat submit (%d, %d)", sx, sy)
-            await self._adb.tap(sx, sy)
-            await asyncio.sleep(2)
-            return WorkflowState.VERIFY_PAYMENT
+        if screen == ScreenType.UNKNOWN:
+            screenshot_path = await screencap.capture(self._adb)
+            log.error(
+                "CHECKOUT: tombol 'Buat Pesanan' gagal diproses, screenshot=%s",
+                screenshot_path,
+            )
+            return WorkflowState.RECOVERY
 
-        log.warning("CHECKOUT: gak ada fallback — loop lagi")
-        return WorkflowState.OPEN_PRODUCT
+        return WorkflowState.VERIFY_PAYMENT

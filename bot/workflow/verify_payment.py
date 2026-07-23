@@ -1,6 +1,7 @@
 """State: VERIFY_PAYMENT — tunggu konfirmasi order setelah tap 'Buat Pesanan'."""
 from __future__ import annotations
 
+from bot.adb import screencap
 from bot.adb.client import ADBClient
 from bot.adb.xml_cache import XMLCache
 from bot.actions import checkout_actions as cacts
@@ -28,5 +29,10 @@ class VerifyPaymentHandler:
             log.info("VERIFY_PAYMENT: halaman pembayaran → order dibuat")
             return WorkflowState.CREATE_ORDER
 
-        log.warning("VERIFY_PAYMENT: screen tidak dikenali (%s)", screen.value)
+        screenshot_path = await screencap.capture(self._adb)
+        log.warning(
+            "VERIFY_PAYMENT: screen tidak dikenali (%s), screenshot=%s",
+            screen.value,
+            screenshot_path,
+        )
         return WorkflowState.RECOVERY
