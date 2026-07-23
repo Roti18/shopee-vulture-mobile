@@ -86,13 +86,20 @@ class StateMachine:
                         reconnect_attempts = 0
                         continue
 
-                # Exponential backoff: 3s → 6s → 12s → 24s → 30s (cap)
-                reconnect_attempts = min(reconnect_attempts + 1, MAX_RECONNECT_ATTEMPTS)
-                backoff = min(3 * (2 ** (reconnect_attempts - 1)), 30)
+                reconnect_attempts += 1
+                # Kalo >= 3× gagal reconnect — gausa maksa, langsung IDLE
+                # daripada nunggu 30s× terus buang waktu.
+                if reconnect_attempts >= 3:
+                    log.error("StateMachine: ADB lost 3× berturut — masuk IDLE")
+                    self._runtime.mode = BotMode.IDLE
+                    reconnect_attempts = 0
+                    continue
+
+                backoff = min(3 * (2 ** (reconnect_attempts - 1)), 15)
                 log.warning(
                     "StateMachine: ADB device belum terhubung, tunggu %ds... "
-                    "(attempt %d/%d)",
-                    backoff, reconnect_attempts, MAX_RECONNECT_ATTEMPTS,
+                    "(attempt %d)",
+                    backoff, reconnect_attempts,
                 )
                 await asyncio.sleep(backoff)
                 continue

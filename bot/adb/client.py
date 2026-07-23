@@ -86,11 +86,10 @@ class ADBClient:
     # ------------------------------------------------------------------ #
 
     async def is_connected(self) -> bool:
-        """True jika device terdeteksi dan statusnya 'device'.
-        Timeout 5s — kalo lebih lambat dari itu pasti ada masalah koneksi,
-        gak perlu nunggu 30s default."""
-        rc, out, _ = await self._run(["get-state"], timeout=5)
-        return rc == 0 and out.strip() == "device"
+        """True kalo device beneran bisa diajak ngomong.
+        Bukan cuma ngecek status ADB daemon — coba shell beneran."""
+        rc, out, _ = await self._run(["shell", "echo", "ok"], timeout=5)
+        return rc == 0 and out.strip() == "ok"
 
     async def connect_wifi(self) -> bool:
         if not self.wifi_host:
