@@ -39,9 +39,9 @@ from bot.utils.logger import get_logger
 
 log = get_logger(__name__)
 
-# Progressive backoff untuk OOS loop prevention
-OOS_BACKOFF_BASE = 3        # detik, base backoff
-OOS_BACKOFF_MAX = 120       # detik, cap maksimum backoff
+# OOS loop prevention: gausa tidur, langsung lanjut.
+# Cap 15× berturut-turut → redirect URL refresh (putus cycle).
+# Alasan: tidur cuma bikin bot lemot, gak ngaruh ke ADB connection.
 
 
 class CheckVariantHandler:
@@ -97,18 +97,17 @@ class CheckVariantHandler:
             ))
             await vacts.close_variant_popup(self._adb, self._cache)
 
-            # Apply OOS backoff di MONITOR mode juga
+            # Tracking OOS counter — kalo 15× berturut-turut → refresh URL
             if self._runtime:
                 self._runtime.consecutive_oos_count += 1
                 oos_count = self._runtime.consecutive_oos_count
                 if oos_count >= self._runtime.max_consecutive_oos:
+                    log.warning(
+                        "OOS %d× berturut-turut — refresh URL",
+                        oos_count,
+                    )
                     self._runtime.consecutive_oos_count = 0
                     return WorkflowState.OPEN_PRODUCT
-                backoff = min(
-                    OOS_BACKOFF_BASE * (2 ** (oos_count - 1)),
-                    OOS_BACKOFF_MAX,
-                )
-                await asyncio.sleep(backoff)
             return WorkflowState.BUY_VOUCHER
 
         # Reset OOS counter — stok terdeteksi di MONITOR
@@ -143,13 +142,10 @@ class CheckVariantHandler:
         if "Beli Sekarang" not in submit_text:
             log.info("EXECUTE: submit = '%s' -> close", submit_text)
 
-            # ── Progressive backoff OOS ──────────────────────────────
+            # ── OOS counter — 15× berturut-turut → refresh URL ─────────
             self._runtime.consecutive_oos_count += 1
             oos_count = self._runtime.consecutive_oos_count
-            log.info(
-                "OOS #%d/%d — apply progressive backoff",
-                oos_count, self._runtime.max_consecutive_oos,
-            )
+            log.info("OOS #%d/%d", oos_count, self._runtime.max_consecutive_oos)
 
             await vacts.close_variant_popup(self._adb, self._cache)
 
@@ -161,13 +157,6 @@ class CheckVariantHandler:
                 self._runtime.consecutive_oos_count = 0
                 return WorkflowState.OPEN_PRODUCT
 
-            # Exponential backoff: 3s → 6s → 12s → 24s → 48s → 96s → cap 120s
-            backoff = min(
-                OOS_BACKOFF_BASE * (2 ** (oos_count - 1)),
-                OOS_BACKOFF_MAX,
-            )
-            log.info("OOS backoff: tidur %ds sebelum coba lagi", backoff)
-            await asyncio.sleep(backoff)
             return WorkflowState.BUY_VOUCHER
 
         # ── Reset OOS counter — stok tersedia ────────────────────────
