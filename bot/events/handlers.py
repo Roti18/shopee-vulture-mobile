@@ -29,7 +29,8 @@ def register_log_handlers(bus: EventBus) -> None:
         log.warning("ORDER FAILED: %s (state: %s)", event.reason, event.state.value)
 
     async def on_recovery(event: ev.RecoveryStartedEvent) -> None:
-        log.warning("RECOVERY L%d: %s", event.level.value, event.reason)
+        level = getattr(event.level, "value", "-")
+        log.warning("RECOVERY L%s: %s", level, event.reason)
 
     async def on_panic(event: ev.PanicEvent) -> None:
         log.critical("PANIC: %s", event.reason)

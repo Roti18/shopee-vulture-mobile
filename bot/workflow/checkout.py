@@ -1,6 +1,8 @@
 """State: CHECKOUT — spam tombol 'Buat Pesanan' lalu lanjut verifikasi order."""
 from __future__ import annotations
 
+import asyncio
+
 from bot.adb import screencap
 from bot.adb.client import ADBClient
 from bot.adb.xml_cache import XMLCache
@@ -33,6 +35,17 @@ class CheckoutHandler:
         )
 
         if screen == ScreenType.UNKNOWN:
+            if self._runtime and self._runtime.last_submit_x > 0:
+                sx, sy = self._runtime.last_submit_x, self._runtime.last_submit_y
+                log.warning(
+                    "CHECKOUT: XML dump timeout, pakai fallback koordinat submit (%d, %d)",
+                    sx, sy,
+                )
+                for _ in range(3):
+                    await self._adb.tap(sx, sy)
+                    await asyncio.sleep(0.15)
+                return WorkflowState.VERIFY_PAYMENT
+
             screenshot_path = await screencap.capture(self._adb)
             log.error(
                 "CHECKOUT: tombol 'Buat Pesanan' gagal diproses, screenshot=%s",
