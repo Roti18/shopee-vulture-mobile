@@ -72,6 +72,8 @@ class BotRuntimeState:
     metrics: WatchdogMetrics = field(default_factory=WatchdogMetrics)
     cooldown_until: datetime | None = None
     blackout_active: bool = False
+    consecutive_oos_count: int = 0          # jumlah berturut-turut produk habis
+    max_consecutive_oos: int = 15            # cap: habis 15× berturut-turut → reload URL
 
     def update_state(self, new_state: WorkflowState) -> None:
         self.workflow_state = new_state

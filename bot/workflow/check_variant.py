@@ -11,6 +11,13 @@ EXECUTE:
   2. Tap kalo belum selected
   3. Cek submit = "Beli Sekarang" → qty → tap submit → checkout
 
+Progressive backoff OOS:
+  - Produk habis (submit "Habis? Temukan Produk Lainnya"): increment counter,
+    sleep progressive (3s → 6s → 12s → ...), max 120s.
+  - Counter reset saat "Beli Sekarang" terdeteksi.
+  - Jika habis >= max_consecutive_oos (15×): redirect ke OPEN_PRODUCT
+    untuk reload URL (refresh page) — putus cycle.
+
 MONITOR:
   scan "Stok: N" + threshold + alert Telegram
 """
@@ -31,6 +38,10 @@ from bot.actions import checkout_actions as cacts
 from bot.utils.logger import get_logger
 
 log = get_logger(__name__)
+
+# Progressive backoff untuk OOS loop prevention
+OOS_BACKOFF_BASE = 3        # detik, base backoff
+OOS_BACKOFF_MAX = 120       # detik, cap maksimum backoff
 
 
 class CheckVariantHandler:
@@ -85,7 +96,24 @@ class CheckVariantHandler:
                 threshold=self._product.minimum_stock,
             ))
             await vacts.close_variant_popup(self._adb, self._cache)
+
+            # Apply OOS backoff di MONITOR mode juga
+            if self._runtime:
+                self._runtime.consecutive_oos_count += 1
+                oos_count = self._runtime.consecutive_oos_count
+                if oos_count >= self._runtime.max_consecutive_oos:
+                    self._runtime.consecutive_oos_count = 0
+                    return WorkflowState.OPEN_PRODUCT
+                backoff = min(
+                    OOS_BACKOFF_BASE * (2 ** (oos_count - 1)),
+                    OOS_BACKOFF_MAX,
+                )
+                await asyncio.sleep(backoff)
             return WorkflowState.BUY_VOUCHER
+
+        # Reset OOS counter — stok terdeteksi di MONITOR
+        if self._runtime and self._runtime.consecutive_oos_count > 0:
+            self._runtime.consecutive_oos_count = 0
 
         await self._bus.emit(ev.VariantStockDetectedEvent(
             product_name=self._product.name,
@@ -114,8 +142,42 @@ class CheckVariantHandler:
         submit_text = parser.get_submit_button_text()
         if "Beli Sekarang" not in submit_text:
             log.info("EXECUTE: submit = '%s' -> close", submit_text)
+
+            # ── Progressive backoff OOS ──────────────────────────────
+            self._runtime.consecutive_oos_count += 1
+            oos_count = self._runtime.consecutive_oos_count
+            log.info(
+                "OOS #%d/%d — apply progressive backoff",
+                oos_count, self._runtime.max_consecutive_oos,
+            )
+
             await vacts.close_variant_popup(self._adb, self._cache)
+
+            if oos_count >= self._runtime.max_consecutive_oos:
+                log.warning(
+                    "OOS %d× berturut-turut — reload URL (refresh page)",
+                    oos_count,
+                )
+                self._runtime.consecutive_oos_count = 0
+                return WorkflowState.OPEN_PRODUCT
+
+            # Exponential backoff: 3s → 6s → 12s → 24s → 48s → 96s → cap 120s
+            backoff = min(
+                OOS_BACKOFF_BASE * (2 ** (oos_count - 1)),
+                OOS_BACKOFF_MAX,
+            )
+            log.info("OOS backoff: tidur %ds sebelum coba lagi", backoff)
+            await asyncio.sleep(backoff)
             return WorkflowState.BUY_VOUCHER
+
+        # ── Reset OOS counter — stok tersedia ────────────────────────
+        if self._runtime.consecutive_oos_count > 0:
+            log.info(
+                "Submit 'Beli Sekarang' terdeteksi — reset OOS counter "
+                "(sebelumnya %d×)",
+                self._runtime.consecutive_oos_count,
+            )
+            self._runtime.consecutive_oos_count = 0
 
         # ── Qty ──────────────────────────────────────────────────────
         if self._product.purchase_quantity > 1:

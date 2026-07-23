@@ -86,8 +86,10 @@ class ADBClient:
     # ------------------------------------------------------------------ #
 
     async def is_connected(self) -> bool:
-        """True jika device terdeteksi dan statusnya 'device'."""
-        rc, out, _ = await self._run(["get-state"])
+        """True jika device terdeteksi dan statusnya 'device'.
+        Timeout 5s — kalo lebih lambat dari itu pasti ada masalah koneksi,
+        gak perlu nunggu 30s default."""
+        rc, out, _ = await self._run(["get-state"], timeout=5)
         return rc == 0 and out.strip() == "device"
 
     async def connect_wifi(self) -> bool:
@@ -96,11 +98,13 @@ class ADBClient:
         # Disconnect dulu — bersihin state stale ADB server biar koneksi baru bersih.
         # ADB server nyimpen per-connection state; kalo langsung connect tanpa
         # disconnect, negosiasi bisa hang/gagal.
-        await self._run(["disconnect"], capture_output=False)
+        await self._run(["disconnect"], capture_output=False, timeout=8)
         await asyncio.sleep(0.5)
         # Connect — pake DEVNULL biar gak hang. ADB `connect` fork child process
         # yg inherit pipe FD, bikin proc.communicate() gak pernah dapet EOF.
-        rc, _, _ = await self._run(["connect", self.wifi_host], capture_output=False)
+        # Timeout 8s: kalo WiFi ADB gak nyambung dalam 8s, mending cepet fail
+        # daripada nunggu 30s.
+        rc, _, _ = await self._run(["connect", self.wifi_host], capture_output=False, timeout=8)
         if rc != 0:
             return False
         await asyncio.sleep(1)
@@ -108,12 +112,12 @@ class ADBClient:
         return await self.is_connected()
 
     async def disconnect(self) -> None:
-        await self._run(["disconnect"], capture_output=False)
+        await self._run(["disconnect"], capture_output=False, timeout=8)
 
     async def reconnect(self) -> bool:
         """Coba reconnect: disconnect → connect lagi (USB atau Wi-Fi)."""
         log.info("ADB reconnect: mulai...")
-        await self._run(["disconnect"], capture_output=False)
+        await self._run(["disconnect"], capture_output=False, timeout=8)
         await asyncio.sleep(1)
         if self.wifi_host:
             ok = await self.connect_wifi()
@@ -125,11 +129,11 @@ class ADBClient:
         return ok
 
     async def kill_server(self) -> None:
-        await self._run(["kill-server"], capture_output=False)
+        await self._run(["kill-server"], capture_output=False, timeout=8)
         await asyncio.sleep(2)
 
     async def start_server(self) -> None:
-        await self._run(["start-server"], capture_output=False)
+        await self._run(["start-server"], capture_output=False, timeout=15)
         await asyncio.sleep(2)
 
     # ------------------------------------------------------------------ #
