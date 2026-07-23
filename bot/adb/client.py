@@ -212,13 +212,14 @@ class ADBClient:
     # ------------------------------------------------------------------ #
 
     async def open_url(self, url: str) -> bool:
-        """Buka URL via Android Intent — cara paling reliable untuk navigasi."""
+        """Buka URL via Android Intent — cara paling reliable untuk navigasi.
+        Timeout 10s: kalo lagi lag, cepet fail biar gak nunggu 30s."""
         log.info("open_url: %s", url)
         rc, _, _ = await self._run([
             "shell", "am", "start",
             "-a", "android.intent.action.VIEW",
             "-d", url,
-        ])
+        ], timeout=10)
         return rc == 0
 
     async def force_stop(self, package: str = SHOPEE_PACKAGE) -> bool:

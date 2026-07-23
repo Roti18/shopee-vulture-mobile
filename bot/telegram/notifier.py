@@ -72,7 +72,6 @@ class TelegramNotifier:
         bus.subscribe(ev.HeartbeatEvent, self._on_heartbeat)
         bus.subscribe(ev.DailyReportEvent, self._on_daily_report)
         bus.subscribe(ev.WatchdogAlertEvent, self._on_watchdog_alert)
-        bus.subscribe(ev.RecoveryStartedEvent, self._on_recovery_started)
         bus.subscribe(ev.PanicEvent, self._on_panic)
         bus.subscribe(ev.CooldownStartEvent, self._on_cooldown_start)
         bus.subscribe(ev.CooldownEndEvent, self._on_cooldown_end)
@@ -178,13 +177,6 @@ class TelegramNotifier:
             f"Bot frozen {event.frozen_seconds:.0f} detik\n"
             f"State terakhir: {event.last_state.value}\n"
             "Memulai recovery otomatis..."
-        )
-
-    async def _on_recovery_started(self, event: ev.RecoveryStartedEvent) -> None:
-        level_str = f" L{event.level.value}" if event.level else ""
-        await self.send(
-            f"🔧 <b>Recovery{level_str}</b>\n"
-            f"Alasan: {event.reason}"
         )
 
     async def _on_panic(self, event: ev.PanicEvent) -> None:
