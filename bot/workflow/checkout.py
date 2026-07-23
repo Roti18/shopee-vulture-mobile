@@ -11,7 +11,7 @@ from bot.utils.logger import get_logger
 
 log = get_logger(__name__)
 
-TARGET_TEXT = "Beli Sekarang"
+TARGET_TEXT = "Buat Pesanan"
 
 
 class CheckoutHandler:
