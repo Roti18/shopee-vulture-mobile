@@ -4,7 +4,7 @@ Runtime state dan statistik bot.
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from bot.models.enums import BotMode, WorkflowState, RecoveryLevel
+from bot.models.enums import BotMode, WorkflowState
 
 
 @dataclass
@@ -67,7 +67,7 @@ class BotStats:
 class BotRuntimeState:
     mode: BotMode = BotMode.IDLE
     workflow_state: WorkflowState = WorkflowState.IDLE
-    recovery_level: RecoveryLevel = RecoveryLevel.L1_SOFT_RETRY
+    recovery_level: int = 0
     stats: BotStats = field(default_factory=BotStats)
     metrics: WatchdogMetrics = field(default_factory=WatchdogMetrics)
     cooldown_until: datetime | None = None

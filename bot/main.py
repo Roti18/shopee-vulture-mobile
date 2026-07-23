@@ -26,8 +26,8 @@ from bot.config import load_config
 from bot.events.bus import EventBus
 from bot.events.handlers import register_log_handlers, register_stats_handlers
 from bot.models.bot_state import BotRuntimeState
-from bot.models.enums import BotMode, RecoveryLevel, WorkflowState
-from bot.recovery.recovery import TieredRecovery
+from bot.models.enums import BotMode, WorkflowState
+from bot.recovery.recovery import Recovery
 from bot.scheduler.blackout_scheduler import BlackoutScheduler
 from bot.scheduler.daily_report import DailyReport
 from bot.scheduler.heartbeat import Heartbeat
@@ -238,7 +238,7 @@ async def main() -> None:
     )
     # Restore dari persistent DB
     runtime.stats.purchase_count_session = saved.purchase_count_session
-    runtime.recovery_level = RecoveryLevel.L1_SOFT_RETRY
+    runtime.recovery_level = 0  # recovery disederhanakan, gausa level
     if saved.cooldown_until:
         try:
             from datetime import datetime as _dt
@@ -273,7 +273,7 @@ async def main() -> None:
                 runtime.workflow_state.value,
                 runtime.stats.purchase_count_session,
                 cooldown_str,
-                runtime.recovery_level.value,
+                runtime.recovery_level,
             ),
         )
         await cfg.db.conn.commit()
@@ -298,8 +298,8 @@ async def main() -> None:
     bus.subscribe(ev.OrderSuccessEvent, on_order_success_db)
 
     # ── Recovery ──────────────────────────────────────────────────────────
-    recovery = TieredRecovery(
-        adb=adb, cache=cache, bus=bus, runtime=runtime, product=cfg.product
+    recovery = Recovery(
+        adb=adb, bus=bus, runtime=runtime, product=cfg.product
     )
 
     # ── State Machine ─────────────────────────────────────────────────────
@@ -456,8 +456,8 @@ async def main() -> None:
 
 
 class _RecoveryAdapter:
-    """Adapter agar TieredRecovery bisa dipanggil sebagai StateHandler."""
-    def __init__(self, recovery: TieredRecovery) -> None:
+    """Adapter agar Recovery bisa dipanggil sebagai StateHandler."""
+    def __init__(self, recovery: Recovery) -> None:
         self._recovery = recovery
 
     async def execute(self) -> WorkflowState:

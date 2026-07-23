@@ -181,8 +181,9 @@ class TelegramNotifier:
         )
 
     async def _on_recovery_started(self, event: ev.RecoveryStartedEvent) -> None:
+        level_str = f" L{event.level.value}" if event.level else ""
         await self.send(
-            f"🔧 <b>Recovery L{event.level.value}</b>\n"
+            f"🔧 <b>Recovery{level_str}</b>\n"
             f"Alasan: {event.reason}"
         )
 

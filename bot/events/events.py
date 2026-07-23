@@ -107,13 +107,13 @@ class StateChangedEvent:
 
 @dataclass
 class RecoveryStartedEvent:
-    level: RecoveryLevel
-    reason: str
+    level: RecoveryLevel | None = None
+    reason: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
 
 @dataclass
 class RecoverySuccessEvent:
-    level: RecoveryLevel
+    level: RecoveryLevel | None = None
     timestamp: datetime = field(default_factory=datetime.now)
 
 @dataclass
