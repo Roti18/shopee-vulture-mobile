@@ -1,25 +1,25 @@
-"""State: CHECKOUT — tap 'Buat Pesanan' terus sampe berhasil.
+"""State: CHECKOUT — tap 'Buat Pesanan' berdasarkan XML text.
 
-Submit di CHECK_VARIANT udah bekerja — kita PASTI udah di checkout page.
-Gausa verify/cek apa-apa, gausa dump, langsung tap loop aja.
-uiautomator sering timeout di checkout page (WebView berat) — jangan di-treat
-sebagai kegagalan. Tinggal tap terus.
+Alur:
+  1. Coba dump — kalo timeout ya udah, skip, loop lagi.
+     Gausa dipaksa, gausa press_back, gausa hardcoded.
+  2. Kalo dump berhasil, cari tombol "Buat Pesanan" by TEXT → tap.
+  3. Kalo sukses (screen berubah ke payment/success), lanjut VERIFY_PAYMENT.
+  4. Kalo gak berubah dalam 15 detik, loop lagi.
 """
 from __future__ import annotations
 
 import asyncio
+import time
 
 from bot.adb.client import ADBClient
 from bot.adb.xml_cache import XMLCache
-from bot.models.enums import WorkflowState
+from bot.models.enums import WorkflowState, ScreenType
+from bot.models.product import ProductConfig
+from bot.parser.checkout_parser import CheckoutParser
 from bot.utils.logger import get_logger
 
 log = get_logger(__name__)
-
-# Hardcoded: tombol "Buat Pesanan" di bottom.
-# Submit aja di (540, 2236), "Buat Pesanan" lebih bawah.
-_FALLBACK_TAP_X = 540
-_FALLBACK_TAP_Y = 2260
 
 
 class CheckoutHandler:
@@ -31,20 +31,42 @@ class CheckoutHandler:
         self._product = product
 
     async def execute(self) -> WorkflowState:
-        # LANGSUNG TAP LOOP. Gausa dump, gausa resolve, gausa verify.
-        # Submit CHECK_VARIANT udah bekerja — user PASTI di checkout.
-        tap_x, tap_y = _FALLBACK_TAP_X, _FALLBACK_TAP_Y
-        via = "checkout_hardcoded"
+        # Coba dump — kalo timeout ya udah, gausa dipaksa
+        tree = await self._cache.get(self._adb, force=True)
+        if tree is None:
+            log.warning("CHECKOUT: dump timeout — skip, loop lagi")
+            return WorkflowState.OPEN_PRODUCT
 
-        # ── Tap "Buat Pesanan" 30× (≈45 detik) ───────────────────────
-        # 45 detik cukup buat Shopee proses order.
-        # Kalo sukses ya sukses, user liat sendiri di HP.
-        # Gausa VERIFY_PAYMENT/CREATE_ORDER — uiautomator selalu timeout
-        # di WebView checkout, verify gagal + false positive dari stale cache.
-        for i in range(30):
-            log.info("CHECKOUT: tap (%d, %d) #%d", tap_x, tap_y, i + 1)
-            await self._adb.tap(tap_x, tap_y)
-            await asyncio.sleep(1.5)
+        parser = CheckoutParser(self._cache)
+        if not parser.is_checkout_page():
+            log.warning("CHECKOUT: bukan halaman checkout — loop lagi")
+            return WorkflowState.OPEN_PRODUCT
 
-        log.info("CHECKOUT: 30× tap selesai — loop lagi")
+        # Cari tombol "Buat Pesanan" by TEXT
+        el = parser.get_place_order_button()
+        if el is None:
+            log.warning("CHECKOUT: tombol Buat Pesanan gak ditemukan — loop lagi")
+            return WorkflowState.OPEN_PRODUCT
+
+        log.info("CHECKOUT: tap 'Buat Pesanan' via [%s] at (%d, %d)", el.resolved_via, el.tap_x, el.tap_y)
+
+        # Tap — kalo screen berubah, berarti sukses
+        await self._adb.tap(el.tap_x, el.tap_y)
+
+        # Tunggu hasil 3 detik — cek apakah berubah ke payment/success
+        await asyncio.sleep(3)
+        tree = await self._cache.get(self._adb, force=True)
+        if tree is None:
+            # Kalo dump timeout di verify, ya udah — loop aja
+            log.warning("CHECKOUT: verify dump timeout — loop lagi")
+            return WorkflowState.OPEN_PRODUCT
+
+        screen = CheckoutParser(self._cache).detect_screen()
+        log.info("CHECKOUT: setelah tap screen = %s", screen.value)
+
+        if screen in (ScreenType.PAYMENT_PAGE, ScreenType.ORDER_SUCCESS):
+            log.info("CHECKOUT: berhasil -> %s", screen.value)
+            return WorkflowState.VERIFY_PAYMENT
+
+        log.info("CHECKOUT: tap gak mengubah screen — loop lagi")
         return WorkflowState.OPEN_PRODUCT
