@@ -324,7 +324,7 @@ async def main() -> None:
     sm.register(WorkflowState.BUY_NOW,
                 BuyNowHandler(adb, cache))
     sm.register(WorkflowState.CHECKOUT,
-                CheckoutHandler(adb, cache, cfg.product))
+                CheckoutHandler(adb, cache, cfg.product, runtime))
     sm.register(WorkflowState.VERIFY_PAYMENT,
                 VerifyPaymentHandler(adb, cache))
     sm.register(WorkflowState.CREATE_ORDER,

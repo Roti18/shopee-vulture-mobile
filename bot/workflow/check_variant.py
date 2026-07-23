@@ -191,6 +191,11 @@ class CheckVariantHandler:
             await vacts.close_variant_popup(self._adb, self._cache)
             return WorkflowState.BUY_VOUCHER
 
+        # Catet koordinat submit buat dipake checkout (fallback kalo dump timeout)
+        if self._runtime:
+            self._runtime.last_submit_x = submit_el.tap_x
+            self._runtime.last_submit_y = submit_el.tap_y
+
         # Submit berhasil — langsung proceed ke CHECKOUT.
         # Gausa dump/verify checkout page di sini, ntar di CheckoutHandler
         # yang ngecek. Press_back HARAM — itu yg dorong user keluar.

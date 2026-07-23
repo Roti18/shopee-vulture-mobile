@@ -74,6 +74,8 @@ class BotRuntimeState:
     blackout_active: bool = False
     consecutive_oos_count: int = 0          # jumlah berturut-turut produk habis
     max_consecutive_oos: int = 15            # cap: habis 15× berturut-turut → reload URL
+    last_submit_x: int = 0                   # koordinat X submit button (dari check_variant)
+    last_submit_y: int = 0                   # koordinat Y submit button (dari check_variant)
 
     def update_state(self, new_state: WorkflowState) -> None:
         self.workflow_state = new_state
