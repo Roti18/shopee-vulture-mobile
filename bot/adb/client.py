@@ -109,8 +109,26 @@ class ADBClient:
         if rc != 0:
             return False
         await asyncio.sleep(1)
-        # Verifikasi via get-state (butuh output — pake capture_output=True normal)
-        return await self.is_connected()
+
+        # Cek status beneran "device" bukan "offline"
+        # Tailscale relay bisa ngasih "offline" kalo HP mati/standby
+        rc, out, _ = await self._run(["get-state"], timeout=3)
+        if rc == 0 and out.strip() == "device":
+            return True
+
+        # Status offline — disconnect paksa trus retry 1x dengan jeda
+        # (Tailscale relay perlu waktu reconnect pas HP bangun)
+        if "offline" in out.lower():
+            log.warning("ADB: device offline — disconnect paksa + retry")
+            await self._run(["disconnect", self.wifi_host], capture_output=False, timeout=5)
+            await asyncio.sleep(3)
+            rc, _, _ = await self._run(["connect", self.wifi_host], capture_output=False, timeout=8)
+            if rc == 0:
+                await asyncio.sleep(2)
+                rc, out, _ = await self._run(["get-state"], timeout=3)
+                return rc == 0 and out.strip() == "device"
+
+        return False
 
     async def disconnect(self) -> None:
         await self._run(["disconnect"], capture_output=False, timeout=8)
