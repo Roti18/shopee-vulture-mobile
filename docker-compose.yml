@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     container_name: shopee-restock-bot
     restart: unless-stopped
+    network_mode: host
 
     # Container jalan sebagai botuser (UID 999).
     # Di host, jalankan: sudo chown -R 999:999 data logs screenshots
@@ -33,7 +34,7 @@ services:
     #   - /dev/bus/usb:/dev/bus/usb
     # privileged: true
 
-    # ADB via WiFi tidak memerlukan devices mapping
+    # ADB via WiFi: pake network_mode host biar bisa reach Tailscale IP
     # Pastikan ADB_WIFI_HOST sudah diisi di .env
 
     # Logging: JSON format, rotasi otomatis
