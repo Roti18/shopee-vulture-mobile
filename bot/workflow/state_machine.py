@@ -87,9 +87,9 @@ class StateMachine:
                         continue
 
                 reconnect_attempts += 1
-                # Kalo >= 3× gagal reconnect — gausa maksa, langsung IDLE
-                # daripada nunggu 30s× terus buang waktu.
-                if reconnect_attempts >= 3:
+                # Kalo >= 2× gagal reconnect — gausa maksa, langsung IDLE
+                # daripada nunggu 15s terus buang waktu.
+                if reconnect_attempts >= 2:
                     log.error("StateMachine: ADB lost 3× berturut — masuk IDLE")
                     self._runtime.mode = BotMode.IDLE
                     reconnect_attempts = 0
