@@ -16,10 +16,11 @@ TARGET_TEXT = "Buat Pesanan"
 
 class CheckoutHandler:
     def __init__(
-        self, adb: ADBClient, cache: XMLCache,
+        self, adb: ADBClient, cache: XMLCache, product=None,
     ) -> None:
         self._adb = adb
         self._cache = cache
+        self._product = product
 
     async def execute(self) -> WorkflowState:
         tree = await self._cache.get(self._adb, force=True)
